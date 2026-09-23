@@ -1,0 +1,46 @@
+*{
+    box-sizing: border-box;
+}
+
+.titulo h1{
+    margin-left: 3rem;
+    margin-top: 4rem;
+    margin-right: 1rem;
+    font-size: 81px;
+    font-family: 'Lucida Grande';
+}
+.subtitulo p{
+    margin-top: 0;
+    margin-left: 3rem;
+    margin-right: 1rem;
+    line-height: 1.2;
+    font-size: 32px;
+}
+.btn-saibamais{
+    margin-left: 3rem;
+    text-align: center;
+    width: 70%;
+   --background:#c6cec6;
+}
+.image{
+    height: fit-content;
+    border-radius: 0 0 0 15px;
+}
+
+ion-searchbar.search{
+    width: 60rem;
+    margin: 0 auto;
+    --border-radius: 20px;
+    --ion-background-color: #c6cec6;
+    color: #314e33;
+}
+
+.principal{
+    padding: 0;
+
+}
+
+ion-col{
+    --ion-grid-column-padding: 0;
+
+}

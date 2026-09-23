@@ -1,0 +1,7 @@
+{
+  "name": "ginkle",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite"
+}
