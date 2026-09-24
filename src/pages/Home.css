@@ -44,3 +44,9 @@ ion-col{
     --ion-grid-column-padding: 0;
 
 }
+
+.footer{
+    display: flex;
+    justify-content: center;
+    font-size: 8px;
+}

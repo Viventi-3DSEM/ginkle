@@ -10,6 +10,7 @@ import { IonButton,
    IonRow,
    IonCol,
    IonSearchbar,
+   IonFooter,
 
   } from '@ionic/react';
 import ExploreContainer from '../components/ExploreContainer';
@@ -55,7 +56,7 @@ const Home: React.FC = () => {
         <IonRow>
 
       <IonCol>
-      
+
       </IonCol>
       
       <IonCol>
@@ -67,6 +68,15 @@ const Home: React.FC = () => {
       </IonGrid>
 
       </IonContent>
+      <IonFooter>
+        <IonToolbar>
+          <IonButtons className='footer'>
+            <IonButton>ginkle.contato@ginkle.com</IonButton>
+            <IonButton>Termos de uso</IonButton>
+            <IonButton>Preferências de cookies</IonButton>
+          </IonButtons>
+        </IonToolbar>
+      </IonFooter>
     </IonPage>
   );
 };
