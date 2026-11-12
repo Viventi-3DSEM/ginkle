@@ -1,27 +1,113 @@
+﻿import Image from "next/image";
 import Link from "next/link";
+import { Mail, MapPin, Phone } from "lucide-react";
 
-export default function Footer(){
-    return(
-        
-        <footer className="px-6 bg-[#263b49] py-9">
-            <section className="grid grid-cols-1 gap-8 px-8 text-sm sm:grid-cols-3 md:px-16 ml-20">
-                <div className="flex flex-col gap-3">
-                <a>ginkle@ginkle.com</a>
-                <a>(13) 9912-3456</a>
-                </div>
-                <div className="flex flex-col gap-1">
-                <a>Termos de Uso</a>
-                <a>Avisos Legais</a>
-                </div>
-                <div className="flex flex-col gap-1">
-                <a>Preferências de Cookies</a>
-                <a>&copy; {new Date().getFullYear()} Ginkle</a>
-                </div>
-                
-                
+export default function Footer() {
+  return (
+    <footer className="mt-auto bg-footer text-footer-foreground">
+      <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="sm:col-span-2 lg:col-span-1">
+          <Link href="/" className="flex items-center gap-2">
+            <Image
+              src="/ginkle-mark.svg"
+              alt=""
+              width={28}
+              height={28}
+              className="h-7 w-7"
+            />
+            <span className="font-heading text-xl font-bold tracking-tight text-footer-foreground">
+              Ginkle
+            </span>
+          </Link>
+          <p className="mt-4 max-w-xs text-sm leading-relaxed text-footer-muted">
+            Gestão assistencial e transparência para Instituições de Longa
+            Permanência para Idosos.
+          </p>
+        </div>
 
-            </section>
-        </footer>
+        <nav aria-label="Plataforma">
+          <h2 className="font-sans text-sm font-semibold text-footer-foreground">
+            Plataforma
+          </h2>
+          <ul className="mt-4 space-y-2.5 text-sm text-footer-muted">
+            <li>
+              <Link href="/" className="transition-colors hover:text-footer-foreground">
+                Início
+              </Link>
+            </li>
+            <li>
+              <Link href="/casas" className="transition-colors hover:text-footer-foreground">
+                Casas de repouso
+              </Link>
+            </li>
+            <li>
+              <Link href="/sobre" className="transition-colors hover:text-footer-foreground">
+                Sobre nós
+              </Link>
+            </li>
+            <li>
+              <Link href="/cadastro" className="transition-colors hover:text-footer-foreground">
+                Cadastre-se
+              </Link>
+            </li>
+          </ul>
+        </nav>
 
-    )
+        <nav aria-label="Institucional">
+          <h2 className="font-sans text-sm font-semibold text-footer-foreground">
+            Institucional
+          </h2>
+          <ul className="mt-4 space-y-2.5 text-sm text-footer-muted">
+            <li>
+              <Link href="/sobre" className="transition-colors hover:text-footer-foreground">
+                Termos de uso
+              </Link>
+            </li>
+            <li>
+              <Link href="/sobre" className="transition-colors hover:text-footer-foreground">
+                Avisos legais
+              </Link>
+            </li>
+            <li>
+              <Link href="/sobre" className="transition-colors hover:text-footer-foreground">
+                Preferências de cookies
+              </Link>
+            </li>
+          </ul>
+        </nav>
+
+        <div>
+          <h2 className="font-sans text-sm font-semibold text-footer-foreground">
+            Fale com a gente
+          </h2>
+          <ul className="mt-4 space-y-3 text-sm text-footer-muted">
+            <li className="flex items-center gap-2.5">
+              <Mail className="size-4 shrink-0" aria-hidden="true" />
+              <a href="mailto:contato@ginkle.com.br" className="transition-colors hover:text-footer-foreground">
+                contato@ginkle.com.br
+              </a>
+            </li>
+            <li className="flex items-center gap-2.5">
+              <Phone className="size-4 shrink-0" aria-hidden="true" />
+              <a href="tel:+5513991234567" className="transition-colors hover:text-footer-foreground">
+                (13) 99123-4567
+              </a>
+            </li>
+            <li className="flex items-center gap-2.5">
+              <MapPin className="size-4 shrink-0" aria-hidden="true" />
+              Praia Grande · SP
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="border-t border-white/10">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-5 py-5 text-xs text-footer-muted sm:flex-row">
+          <p>© {new Date().getFullYear()} Ginkle. Projeto de TCC, ETEC Praia Grande.</p>
+          <p>Grupo Viventi · ODS 3, 10 e 16</p>
+        </div>
+      </div>
+    </footer>
+  );
 }
+
