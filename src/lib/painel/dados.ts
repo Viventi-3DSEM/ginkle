@@ -782,3 +782,84 @@ export async function residentesDoGestor(): Promise<ResidentesDoGestor> {
 
   return { casas, residentes, solicitacoes };
 }
+
+export type MembroEquipe = {
+  id: string;
+  usuarioId: string;
+  casaId: string;
+  casaNome: string;
+  nome: string;
+  email: string;
+  telefone: string | null;
+  cargo: string;
+  ativo: boolean;
+  desde: string;
+  ehVoce: boolean;
+};
+
+export type EquipeDoGestor = {
+  casas: { id: string; nome: string; slug: string }[];
+  membros: MembroEquipe[];
+};
+
+export async function equipeDoGestor(): Promise<EquipeDoGestor> {
+  const supabase = await createClientOpcional();
+  if (!supabase) return { casas: [], membros: [] };
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { casas: [], membros: [] };
+
+  const ids = await idsDasMinhasCasas(supabase);
+  if (ids.length === 0) return { casas: [], membros: [] };
+
+  const [casasRes, vinculosRes] = await Promise.all([
+    supabase
+      .from("ilpi")
+      .select("id_ilpi, nome, slug")
+      .in("id_ilpi", ids)
+      .order("nome", { ascending: true }),
+    supabase
+      .from("vinculo_ilpi")
+      .select("id_vinculo, id_usuario, id_ilpi, cargo, ativo, data_vinculo, usuario(nome, email, telefone)")
+      .in("id_ilpi", ids)
+      .order("ativo", { ascending: false })
+      .order("cargo", { ascending: true })
+      .order("data_vinculo", { ascending: true }),
+  ]);
+
+  const casas = ((casasRes.data ?? []) as unknown as {
+    id_ilpi: string;
+    nome: string;
+    slug: string;
+  }[]).map((c) => ({ id: c.id_ilpi, nome: c.nome, slug: c.slug }));
+
+  const casaPorId = new Map(casas.map((c) => [c.id, c]));
+
+  const membros: MembroEquipe[] = ((vinculosRes.data ?? []) as unknown as {
+    id_vinculo: string;
+    id_usuario: string;
+    id_ilpi: string;
+    cargo: string;
+    ativo: boolean;
+    data_vinculo: string;
+    usuario: { nome: string; email: string; telefone: string | null } | null;
+  }[])
+    .filter((v) => casaPorId.has(v.id_ilpi))
+    .map((v) => ({
+      id: v.id_vinculo,
+      usuarioId: v.id_usuario,
+      casaId: v.id_ilpi,
+      casaNome: casaPorId.get(v.id_ilpi)!.nome,
+      nome: v.usuario?.nome ?? "Profissional",
+      email: v.usuario?.email ?? "",
+      telefone: v.usuario?.telefone ?? null,
+      cargo: v.cargo,
+      ativo: Boolean(v.ativo),
+      desde: v.data_vinculo,
+      ehVoce: v.id_usuario === user.id,
+    }));
+
+  return { casas, membros };
+}

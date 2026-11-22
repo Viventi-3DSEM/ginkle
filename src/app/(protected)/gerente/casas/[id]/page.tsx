@@ -301,7 +301,10 @@ export default async function CasaDetalhePage({ params }: Props) {
       </Secao>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Secao titulo="Equipe">
+        <Secao
+          titulo="Equipe"
+          acao={{ href: `/gerente/equipe?casa=${casa.id}`, label: "Gerenciar" }}
+        >
           {casa.colaboradores.length === 0 ? (
             <Vazio texto="Nenhum outro profissional vinculado." />
           ) : (

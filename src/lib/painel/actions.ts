@@ -735,3 +735,185 @@ export async function responderSolicitacao(_estado: Estado, form: FormData): Pro
         : "Solicitação recusada.",
   };
 }
+
+function revalidarEquipe(casaId: string) {
+  revalidatePath("/gerente");
+  revalidatePath("/gerente/equipe");
+  revalidatePath("/gerente/casas");
+  revalidatePath(`/gerente/casas/${casaId}`);
+}
+
+export async function adicionarMembroEquipe(
+  _estado: Estado,
+  form: FormData,
+): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const casaId = texto(form, "casaId");
+  const email = texto(form, "email").toLowerCase();
+  const cargo = texto(form, "cargo").toUpperCase();
+
+  if (!UUID_RE.test(casaId)) return { erro: "Selecione uma casa válida." };
+  if (!EMAIL_RE.test(email)) return { erro: "Informe um e-mail válido." };
+  if (cargo !== "GESTOR" && cargo !== "FUNCIONARIO") return { erro: "Selecione um cargo válido." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("vincular_equipe_por_email", {
+    p_ilpi: casaId,
+    p_email: email,
+    p_cargo: cargo,
+  });
+
+  if (error) {
+    if (error.code === "P0002") {
+      return {
+        erro: "Nenhuma conta encontrada com esse e-mail. O profissional precisa criar conta no Ginkle primeiro.",
+      };
+    }
+    if (error.code === "42501") {
+      return { erro: "Apenas gestores podem gerenciar a equipe desta casa." };
+    }
+    if (error.code === "22023") return { erro: error.message };
+    return { erro: "Não foi possível adicionar o profissional. Tente novamente." };
+  }
+
+  revalidarEquipe(casaId);
+  return { ok: "Profissional adicionado à equipe." };
+}
+
+export async function alterarCargoEquipe(
+  idVinculo: string,
+  casaId: string,
+  cargo: string,
+): Promise<{ erro?: string; ok?: string }> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+  const cargoNorm = cargo.toUpperCase();
+  if (!UUID_RE.test(idVinculo) || !UUID_RE.test(casaId)) {
+    return { erro: "Vínculo não encontrado." };
+  }
+  if (cargoNorm !== "GESTOR" && cargoNorm !== "FUNCIONARIO") {
+    return { erro: "Cargo inválido." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { erro: "Sua sessão expirou. Entre novamente." };
+
+  const { data: alvo } = await supabase
+    .from("vinculo_ilpi")
+    .select("id_usuario, cargo")
+    .eq("id_vinculo", idVinculo)
+    .eq("id_ilpi", casaId)
+    .maybeSingle();
+
+  if (!alvo) return { erro: "Vínculo não encontrado." };
+  if ((alvo.id_usuario as string) === user.id) {
+    return { erro: "Você não pode alterar o próprio cargo." };
+  }
+
+  const { data, error } = await supabase
+    .from("vinculo_ilpi")
+    .update({ cargo: cargoNorm })
+    .eq("id_vinculo", idVinculo)
+    .eq("id_ilpi", casaId)
+    .select("id_vinculo");
+
+  if (error) return { erro: mensagemErro(error) };
+  if (!data || data.length === 0) return { erro: "Sem permissão para alterar este vínculo." };
+
+  revalidarEquipe(casaId);
+  return { ok: "Cargo atualizado." };
+}
+
+export async function alternarAtivoEquipe(
+  idVinculo: string,
+  casaId: string,
+  ativo: boolean,
+): Promise<{ erro?: string; ativo: boolean }> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE, ativo: !ativo };
+  if (!UUID_RE.test(idVinculo) || !UUID_RE.test(casaId)) {
+    return { erro: "Vínculo não encontrado.", ativo: !ativo };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { erro: "Sua sessão expirou. Entre novamente.", ativo: !ativo };
+
+  if (!ativo) {
+    const { data: alvo } = await supabase
+      .from("vinculo_ilpi")
+      .select("id_usuario")
+      .eq("id_vinculo", idVinculo)
+      .eq("id_ilpi", casaId)
+      .maybeSingle();
+
+    if (alvo && (alvo.id_usuario as string) === user.id) {
+      return { erro: "Você não pode desativar o próprio acesso.", ativo: true };
+    }
+  }
+
+  const { data, error } = await supabase
+    .from("vinculo_ilpi")
+    .update({ ativo })
+    .eq("id_vinculo", idVinculo)
+    .eq("id_ilpi", casaId)
+    .select("id_vinculo");
+
+  if (error) return { erro: mensagemErro(error), ativo: !ativo };
+  if (!data || data.length === 0) {
+    return { erro: "Sem permissão para alterar este vínculo.", ativo: !ativo };
+  }
+
+  revalidarEquipe(casaId);
+  return { ativo };
+}
+
+export async function removerMembroEquipe(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const id = texto(form, "id");
+  const casaId = texto(form, "casaId");
+  if (!UUID_RE.test(id) || !UUID_RE.test(casaId)) return { erro: "Vínculo não encontrado." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { erro: "Sua sessão expirou. Entre novamente." };
+
+  const { data: alvo } = await supabase
+    .from("vinculo_ilpi")
+    .select("id_usuario")
+    .eq("id_vinculo", id)
+    .eq("id_ilpi", casaId)
+    .maybeSingle();
+
+  if (!alvo) return { erro: "Vínculo não encontrado." };
+  if ((alvo.id_usuario as string) === user.id) {
+    return { erro: "Você não pode remover o próprio vínculo." };
+  }
+
+  const { data, error } = await supabase
+    .from("vinculo_ilpi")
+    .delete()
+    .eq("id_vinculo", id)
+    .eq("id_ilpi", casaId)
+    .select("id_vinculo");
+
+  if (error) {
+    if (error.code === "23503") {
+      return {
+        erro: "Este profissional já possui registros de cuidados e não pode ser removido. Desative o acesso pelo controle de ativação.",
+      };
+    }
+    return { erro: mensagemErro(error) };
+  }
+  if (!data || data.length === 0) return { erro: "Sem permissão para remover este vínculo." };
+
+  revalidarEquipe(casaId);
+  return { ok: "Profissional removido da equipe." };
+}

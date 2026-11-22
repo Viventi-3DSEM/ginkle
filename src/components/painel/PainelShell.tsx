@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Globe, LayoutDashboard, LogOut, Tag, Users } from "lucide-react";
+import { Building2, Globe, LayoutDashboard, LogOut, Tag, UserCog, Users } from "lucide-react";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import { sair } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,13 @@ const NAV = [
     label: "Residentes",
     curto: "Residentes",
     Icone: Users,
+    exato: false,
+  },
+  {
+    href: "/gerente/equipe",
+    label: "Equipe",
+    curto: "Equipe",
+    Icone: UserCog,
     exato: false,
   },
   {
@@ -123,6 +130,15 @@ export default function PainelShell({ usuario, children }: Props) {
               <Globe className="size-4" aria-hidden="true" />
             </Link>
             <ThemeToggle />
+            <form action={sair}>
+              <button
+                type="submit"
+                aria-label="Sair"
+                className="inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              >
+                <LogOut className="size-4" aria-hidden="true" />
+              </button>
+            </form>
           </div>
         </header>
 
@@ -149,15 +165,6 @@ export default function PainelShell({ usuario, children }: Props) {
             <span className="max-w-full truncate">{item.curto}</span>
           </Link>
         ))}
-        <form action={sair} className="min-w-0">
-          <button
-            type="submit"
-            className="flex w-full min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[0.68rem] font-medium text-muted-foreground transition-colors"
-          >
-            <LogOut className="size-5" aria-hidden="true" />
-            <span className="max-w-full truncate">Sair</span>
-          </button>
-        </form>
       </nav>
     </div>
   );
