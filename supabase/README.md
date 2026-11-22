@@ -16,18 +16,21 @@ No SQL Editor do Supabase, rodar **um arquivo por vez, nesta ordem**:
 7. `migrations/0007_policies_dados.sql` — policies de residente, registro, chat
 8. `migrations/0008_views_rpc.sql` — avaliação pública, timeline, RPC `criar_ilpi`
 9. `migrations/0009_usuario_equipe.sql` — a equipe de uma casa lê o nome dos colegas
-10. `seed.sql` — as 8 casas do protótipo
-11. `seed_fotos_planos.sql` — fotos e planos dessas casas
+10. `migrations/0010_corrige_rls.sql` — corrige o isolamento entre casas e a linha do tempo do familiar
+11. `migrations/0011_limpa_rls_grants.sql` — vazamento de casa em rascunho, insert direto de casa e EXECUTE das funções
+12. `seed.sql` — as 8 casas do protótipo
+13. `seed_fotos_planos.sql` — fotos e planos dessas casas
 
 Todos são idempotentes: pode rodar de novo sem duplicar.
 
 ### Demo para a apresentação (opcional)
 
 Depois dos seeds, `node supabase/demo.mjs` cria um cenário de demonstração por
-RLS: 5 contas, 3 casas (duas publicadas e uma em rascunho), residentes,
-registros espalhados por 7 dias, avaliações e adesões. A senha das contas vem de
-`DEMO_PW` (nunca no repositório); o script é idempotente e `demo-limpar.sql`
-desfaz tudo na ordem das chaves estrangeiras.
+RLS: 6 contas (1 gestora, 3 funcionários, 2 familiares), 3 casas (duas
+publicadas e uma em rascunho), residentes, registros espalhados por 7 dias,
+avaliações e adesões. A senha das contas vem de `DEMO_PW` (nunca no
+repositório); o script é idempotente e `demo-limpar.sql` desfaz tudo na ordem
+das chaves estrangeiras.
 
 ## O que mudou na porta MySQL → Postgres
 
@@ -62,9 +65,27 @@ Exceção consciente: a equipe da casa **lê o contato do familiar** vinculado a
 residente dela (`usuario_equipe_le_familiares`). É o que permite ligar para a
 família na central de aprovações e no chat. Ninguém mais vê esse perfil.
 
-As funções `eh_gestor`, `eh_equipe`, `eh_familiar_de`, `pode_ver_residente` são
+As policies de leitura pública (`ilpi`, `foto_ilpi`, `plano`, `avaliacao`) são
+**duas**: uma `to anon` (só `publicado`) e uma `to authenticated`
+(`publicado or eh_equipe`, e nas de casa/foto também `eh_familiar_da_casa`). A
+separação existe para o `anon` não precisar de `EXECUTE` em `eh_equipe()` — se
+fossem uma policy só, revogar o EXECUTE do anon derrubaria o diretório com
+`permission denied for function eh_equipe`.
+
+`eh_familiar_da_casa(id_ilpi)` existe porque `publicado` sozinho **não cobre o
+familiar**: quem tem um residente na casa precisa ler o endereço, o telefone e a
+foto dela mesmo que ela esteja em rascunho ou fora do diretório. Sem esse
+helper, a correção do vazamento tiraria justamente isso — o familiar só via a
+foto pelo bug. Aplica-se a `ilpi` e `foto_ilpi` (o portal não usa `plano` nem
+`avaliacao` de casa não publicada).
+
+As funções `eh_gestor`, `eh_equipe`, `eh_familiar_de`, `eh_familiar_da_casa`,
+`pode_ver_residente`, `eh_meu_vinculo`, `cargo_na_ilpi` e `meu_cargo` são
 `security definer` de propósito: sem isso, uma policy em `vinculo_ilpi` que
-consulta `vinculo_ilpi` entra em recursão infinita (erro 42P17).
+consulta `vinculo_ilpi` entra em recursão infinita (erro 42P17). O `EXECUTE`
+delas é de `authenticated` (quem avalia as policies) e mais ninguém; `anon` foi
+revogado. Cuidado ao revogar de `authenticated`: a expressão da policy roda como
+quem consulta e a permissão é verificada.
 
 ## Funções que a aplicação usa
 
@@ -83,7 +104,7 @@ consulta `vinculo_ilpi` entra em recursão infinita (erro 42P17).
 Os SQLs foram rodados de ponta a ponta num Postgres 16 em WebAssembly (PGlite),
 com um schema `auth` de mentira (`auth.users` + `auth.uid()` a partir de
 `request.jwt.claim.sub`) e as roles `anon`/`authenticated`. Resultado: as
-migrations (0001–0009) + os 2 seeds rodam limpos, são idempotentes (2a rodada
+migrations (0001–0010) + os 2 seeds rodam limpos, são idempotentes (2a rodada
 sem erro) e as asserções de RLS passam, incluindo:
 
 - anônimo lê `ilpi_publica` e toma `42501` em `usuario` e `log_acao`;
@@ -91,6 +112,66 @@ sem erro) e as asserções de RLS passam, incluindo:
 - `id_usuario` de outro não pode ser falsificado no insert (policy);
 - a mesma pessoa não avalia a casa duas vezes (`23505`);
 - `criar_ilpi()` deixa o criador como `GESTOR` e grava `ILPI_CRIADA` no log.
+
+A `0010` foi verificada à parte, com **dois inquilinos** (o que a primeira
+rodada não cobria): sem ela, a equipe da casa A lê vínculo, mensagem e fatura da
+casa B e grava registro no residente da casa B; com ela, 8/8 asserções passam e
+o familiar lê a própria linha do tempo, com o nome do autor. A `0010` roda duas
+vezes sem erro.
+
+A `0011` foi verificada com 23 asserções (`%TEMP%\opencode\sqlcheck\rls0011.mjs`,
+que também roda sem a `0011` para medir o antes): sem ela são **8 falhas** — o
+`anon` lê fotos, planos e avaliações da casa em rascunho, chama `eh_equipe()`,
+um `authenticated` sem vínculo insere casa direto, avalia casa publicada e avalia
+casa em rascunho. Com ela, 23/23: só quem tem parente na casa avalia (`familiar`
+passa, estranho e gestor da própria casa não), e o `anon` continua lendo o
+diretório (`ilpi_publica` traz a casa publicada) e a RPC `criar_ilpi()` segue
+criando a casa e o vínculo de gestor.
+
+Uma segunda bateria, `portal_probe.mjs` (**25/25**), roda as migrations com o
+formato exato das consultas do Portal do Familiar contra **duas famílias em casas
+diferentes**, uma delas em rascunho: o familiar A não lê residente, linha do tempo
+nem vínculo do familiar B (nem da casa em rascunho alheia); o familiar da casa em
+rascunho lê o próprio residente, a própria linha do tempo (com nome e cargo do
+autor) e a ficha e a foto da própria casa; o gestor de uma casa não alcança o
+residente da outra; o `anon` vê só as casas publicadas. Sem a `0011`, as mesmas
+consultas expõem 3 fotos para o `anon` (era o vazamento).
+
+Foi essa bateria que revelou o caso do item 0 (`eh_familiar_da_casa`): com a
+correção "pura", o familiar de um residente de casa em rascunho perdia a foto
+(antes via, pelo bug) e a ficha (que já não via antes).
+
+Duas checagens extras, porque mexem em caminho crítico: o trigger de cadastro
+continua disparando sem nenhum `EXECUTE` (`trigger_probe.mjs` — o INSERT em
+`auth.users` cria a linha em `usuario`), e o `demo.mjs` passou a avaliar só casa
+publicada (antes ele avaliava a de rascunho e só funcionava por causa do bug).
+
+## Lints do Supabase aceitos de propósito
+
+O painel de lints do Supabase acusa itens que são escolha consciente. Os que
+ficam:
+
+- `security_definer_view` (ERROR) em `avaliacao_publica` e `registro_timeline` —
+  é o padrão certo quando a view precisa juntar outra tabela (ex.: `usuario`)
+  para devolver uma coluna derivada e filtrar por conta própria. As duas filtram
+  (`publicado` / `pode_ver_residente`) e devolvem só colunas seguras; trocar por
+  `security_invoker` quebraria a feature, não melhoraria a segurança.
+- `authenticated_security_definer_function_executable` nos helpers (`eh_equipe`,
+  `eh_gestor`, `eh_familiar_de`, `eh_familiar_da_casa`, `pode_ver_residente`,
+  `eh_meu_vinculo`, `meu_cargo`, `cargo_na_ilpi`) e em `criar_ilpi` — a expressão
+  de uma policy roda como **quem consulta**, então `authenticated` precisa mesmo
+  de `EXECUTE` nesses helpers; revogar quebraria toda a RLS. São predicados keyed
+  em `auth.uid()`, que devolvem `false`/`null` para quem não tem vínculo
+  (verificado). Fechar isso de vez significa mover os helpers para um schema não
+  exposto (`private.`), o que obriga a reescrever as policies — fica como melhoria
+  opcional, não como bloqueio.
+- `rls_enabled_no_policy` (INFO) em `log_acao` — RLS ligada, sem policy e sem
+  grant: ninguém pela API lê ou escreve; só o servidor com a chave secreta.
+- `*_security_definer_function_executable` em `rls_auto_enable()` — função criada
+  pela própria plataforma do Supabase (não está nas migrations), usada em event
+  trigger. Fora do nosso controle.
+- `auth_leaked_password_protection` — ligar em Authentication → Providers →
+  "Prevent use of leaked passwords". É um clique no painel, não SQL.
 
 ## Configuração no painel
 

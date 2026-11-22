@@ -501,13 +501,13 @@ async function main() {
         log(`casa "${casa.nome}": família de ${alvo.nome}`);
       }
 
-      // ---- avaliação (uma por usuário por casa)
+      // ---- avaliação (uma por usuário por casa; só casa publicada aceita avaliação)
       const { count: avaliacoes } = await gestor
         .from("avaliacao")
         .select("id_avaliacao", { count: "exact", head: true })
         .eq("id_ilpi", idCasa);
 
-      if (!avaliacoes) {
+      if (!avaliacoes && (casa.publicado ?? true)) {
         const { error } = await familiar.cliente.from("avaliacao").insert({
           id_usuario: (await familiar.cliente.auth.getUser()).data.user.id,
           id_ilpi: idCasa,
