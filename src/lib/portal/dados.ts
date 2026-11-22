@@ -62,10 +62,38 @@ export type AdesaoDoFamiliar = {
   casaId: string;
   casaNome: string;
   casaSlug: string | null;
+  casaBairro: string | null;
+  casaCidade: string | null;
+  casaUf: string | null;
+  casaCapaUrl: string | null;
   casaPublicada: boolean;
   status: string;
   quando: string;
   respondidaEm: string | null;
+};
+
+export type CasaDisponivel = {
+  id: string;
+  slug: string;
+  nome: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  vagas: number;
+  capaUrl: string | null;
+};
+
+export type SolicitacoesDoFamiliar = {
+  adesoes: AdesaoDoFamiliar[];
+  casasDisponiveis: CasaDisponivel[];
+  casasVinculadasIds: string[];
+  resumo: {
+    total: number;
+    pendentes: number;
+    aprovadas: number;
+    recusadas: number;
+    canceladas: number;
+  };
 };
 
 export type ResumoFamiliar = {
@@ -366,6 +394,10 @@ export async function portalDoFamiliar(): Promise<PortalDoFamiliar> {
       casaId: a.id_ilpi,
       casaNome: casa?.nome ?? "Instituição",
       casaSlug: casa?.slug ?? null,
+      casaBairro: casa?.bairro ?? null,
+      casaCidade: casa?.cidade ?? null,
+      casaUf: casa?.uf ?? null,
+      casaCapaUrl: casa?.capaUrl ?? null,
       casaPublicada: Boolean(casa?.publicado),
       status: a.status,
       quando: a.data_solicitacao,
@@ -384,6 +416,195 @@ export async function portalDoFamiliar(): Promise<PortalDoFamiliar> {
     },
     atividade,
     adesoes,
+  };
+}
+
+type LinhaIlpiPublica = {
+  id_ilpi: string;
+  slug: string;
+  nome: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  vagas: number | string | null;
+  capa_url: string | null;
+};
+
+/** Solicitações de entrada (adesao_ilpi) do familiar e catálogo publicado para novos pedidos. */
+export async function solicitacoesDoFamiliar(): Promise<SolicitacoesDoFamiliar> {
+  const vazio: SolicitacoesDoFamiliar = {
+    adesoes: [],
+    casasDisponiveis: [],
+    casasVinculadasIds: [],
+    resumo: { total: 0, pendentes: 0, aprovadas: 0, recusadas: 0, canceladas: 0 },
+  };
+
+  const supabase = await createClientOpcional();
+  if (!supabase) return vazio;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return vazio;
+
+  // Filtra adesao_ilpi e familiar_residente por id_usuario para que gestores
+  // que abram o portal vejam apenas seus próprios pedidos como familiar.
+  const [adesoesRes, publicasRes, vinculosRes] = await Promise.all([
+    supabase
+      .from("adesao_ilpi")
+      .select("id_adesao, id_ilpi, status, data_solicitacao, data_resposta")
+      .eq("id_usuario", user.id)
+      .order("data_solicitacao", { ascending: false })
+      .limit(100),
+    supabase
+      .from("ilpi_publica")
+      .select("id_ilpi, slug, nome, bairro, cidade, uf, vagas, capa_url")
+      .order("nome", { ascending: true }),
+    supabase
+      .from("familiar_residente")
+      .select("id_residente")
+      .eq("id_usuario", user.id),
+  ]);
+
+  const adesoesLinhas = (adesoesRes.data ?? []) as unknown as LinhaAdesao[];
+  const publicasLinhas = (publicasRes.data ?? []) as unknown as LinhaIlpiPublica[];
+  const idsResidentes = [
+    ...new Set(
+      ((vinculosRes.data ?? []) as unknown as { id_residente: string }[]).map(
+        (v) => v.id_residente,
+      ),
+    ),
+  ];
+
+  const casasDisponiveis: CasaDisponivel[] = publicasLinhas.map((c) => {
+    const vagas = typeof c.vagas === "number" ? c.vagas : Number(c.vagas ?? 0);
+    return {
+      id: c.id_ilpi,
+      slug: c.slug,
+      nome: c.nome,
+      bairro: c.bairro,
+      cidade: c.cidade,
+      uf: c.uf,
+      vagas: Number.isFinite(vagas) ? vagas : 0,
+      capaUrl: c.capa_url ?? null,
+    };
+  });
+
+  const casaInfoPorId = new Map<
+    string,
+    {
+      nome: string;
+      slug: string | null;
+      bairro: string | null;
+      cidade: string | null;
+      uf: string | null;
+      capaUrl: string | null;
+      publicado: boolean;
+    }
+  >();
+
+  for (const casa of casasDisponiveis) {
+    casaInfoPorId.set(casa.id, {
+      nome: casa.nome,
+      slug: casa.slug,
+      bairro: casa.bairro,
+      cidade: casa.cidade,
+      uf: casa.uf,
+      capaUrl: casa.capaUrl,
+      publicado: true,
+    });
+  }
+
+  // Casas do histórico que não estão publicadas agora (rascunho/retirada):
+  // consulta ilpi/foto_ilpi sob RLS (só retorna se o usuário puder ler).
+  const idsFaltando = [
+    ...new Set(adesoesLinhas.map((a) => a.id_ilpi).filter((id) => !casaInfoPorId.has(id))),
+  ];
+
+  const [extrasCasasRes, extrasFotosRes, residentesCasasRes] = await Promise.all([
+    idsFaltando.length > 0
+      ? supabase
+          .from("ilpi")
+          .select("id_ilpi, slug, nome, bairro, cidade, uf, publicado")
+          .in("id_ilpi", idsFaltando)
+      : Promise.resolve({ data: null }),
+    idsFaltando.length > 0
+      ? supabase
+          .from("foto_ilpi")
+          .select("id_ilpi, url, ordem")
+          .in("id_ilpi", idsFaltando)
+          .order("ordem", { ascending: true })
+      : Promise.resolve({ data: null }),
+    idsResidentes.length > 0
+      ? supabase.from("residente").select("id_ilpi").in("id_residente", idsResidentes)
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const capaExtra = new Map<string, string>();
+  for (const foto of (extrasFotosRes.data ?? []) as unknown as {
+    id_ilpi: string;
+    url: string;
+  }[]) {
+    if (!capaExtra.has(foto.id_ilpi)) capaExtra.set(foto.id_ilpi, foto.url);
+  }
+
+  for (const casa of (extrasCasasRes.data ?? []) as unknown as {
+    id_ilpi: string;
+    slug: string;
+    nome: string;
+    bairro: string;
+    cidade: string;
+    uf: string;
+    publicado: boolean;
+  }[]) {
+    casaInfoPorId.set(casa.id_ilpi, {
+      nome: casa.nome,
+      slug: casa.slug,
+      bairro: casa.bairro,
+      cidade: casa.cidade,
+      uf: casa.uf,
+      capaUrl: capaExtra.get(casa.id_ilpi) ?? null,
+      publicado: Boolean(casa.publicado),
+    });
+  }
+
+  const casasVinculadasIds = [
+    ...new Set(
+      ((residentesCasasRes.data ?? []) as unknown as { id_ilpi: string }[]).map(
+        (r) => r.id_ilpi,
+      ),
+    ),
+  ];
+
+  const adesoes: AdesaoDoFamiliar[] = adesoesLinhas.map((a) => {
+    const casa = casaInfoPorId.get(a.id_ilpi);
+    return {
+      id: a.id_adesao,
+      casaId: a.id_ilpi,
+      casaNome: casa?.nome ?? "Instituição",
+      casaSlug: casa?.slug ?? null,
+      casaBairro: casa?.bairro ?? null,
+      casaCidade: casa?.cidade ?? null,
+      casaUf: casa?.uf ?? null,
+      casaCapaUrl: casa?.capaUrl ?? null,
+      casaPublicada: Boolean(casa?.publicado),
+      status: a.status,
+      quando: a.data_solicitacao,
+      respondidaEm: a.data_resposta,
+    };
+  });
+
+  return {
+    adesoes,
+    casasDisponiveis,
+    casasVinculadasIds,
+    resumo: {
+      total: adesoes.length,
+      pendentes: adesoes.filter((a) => a.status === "PENDENTE").length,
+      aprovadas: adesoes.filter((a) => a.status === "APROVADA").length,
+      recusadas: adesoes.filter((a) => a.status === "RECUSADA").length,
+      canceladas: adesoes.filter((a) => a.status === "CANCELADA").length,
+    },
   };
 }
 

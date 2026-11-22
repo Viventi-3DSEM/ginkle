@@ -67,6 +67,13 @@ function Bloco({
   );
 }
 
+function classeStatusAdesao(status: string): string {
+  if (status === "PENDENTE") return "bg-brand-soft text-brand-strong";
+  if (status === "APROVADA") return "bg-success/15 text-success";
+  if (status === "RECUSADA") return "bg-danger/15 text-danger";
+  return "bg-muted text-muted-foreground";
+}
+
 function ListaAdesoes({ adesoes }: { adesoes: AdesaoDoFamiliar[] }) {
   if (adesoes.length === 0) {
     return (
@@ -74,13 +81,22 @@ function ListaAdesoes({ adesoes }: { adesoes: AdesaoDoFamiliar[] }) {
         <p className="text-sm text-muted-foreground">
           Você não tem solicitações de entrada abertas no momento.
         </p>
-        <Link
-          href="/casas"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-strong hover:underline"
-        >
-          Explorar casas de repouso
-          <ArrowRight className="size-3.5" aria-hidden="true" />
-        </Link>
+        <div className="flex flex-wrap gap-4">
+          <Link
+            href="/cliente/solicitacoes"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-strong hover:underline"
+          >
+            Solicitar entrada em uma casa
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+          </Link>
+          <Link
+            href="/casas"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-brand-strong"
+          >
+            Explorar diretório
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+          </Link>
+        </div>
       </div>
     );
   }
@@ -108,11 +124,7 @@ function ListaAdesoes({ adesoes }: { adesoes: AdesaoDoFamiliar[] }) {
             </p>
           </div>
           <span
-            className={
-              adesao.status === "PENDENTE"
-                ? "shrink-0 rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand-strong"
-                : "shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground"
-            }
+            className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${classeStatusAdesao(adesao.status)}`}
           >
             {rotuloStatusAdesao(adesao.status)}
           </span>
@@ -146,16 +158,27 @@ export default async function PortalInicioPage() {
             proteger os dados de saúde. Se ainda está procurando uma instituição, comece
             pelo diretório.
           </p>
-          <Link
-            href="/casas"
-            className="mt-6 inline-flex items-center justify-center rounded-sm bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-          >
-            Explorar casas de repouso
-          </Link>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/cliente/solicitacoes"
+              className="inline-flex items-center justify-center rounded-sm bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              Solicitar entrada em uma casa
+            </Link>
+            <Link
+              href="/casas"
+              className="inline-flex items-center justify-center rounded-sm border border-border px-6 py-3 text-sm font-medium transition-colors hover:bg-secondary"
+            >
+              Explorar casas de repouso
+            </Link>
+          </div>
         </div>
 
         {adesoes.length > 0 ? (
-          <Bloco titulo="Suas solicitações de entrada">
+          <Bloco
+            titulo="Suas solicitações de entrada"
+            acao={{ href: "/cliente/solicitacoes", label: "Gerenciar" }}
+          >
             <ListaAdesoes adesoes={adesoes} />
           </Bloco>
         ) : null}
@@ -192,8 +215,7 @@ export default async function PortalInicioPage() {
       <header>
         <h1 className="font-heading text-2xl font-semibold sm:text-3xl">Portal do familiar</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          Acompanhe os cuidados registrados pela equipe para os residentes vinculados à sua
-          conta, com horário do dispositivo e confirmação de sincronização.
+          Acompanhe a rotina e os cuidados registrados pela equipe.
         </p>
       </header>
 
@@ -203,7 +225,7 @@ export default async function PortalInicioPage() {
           valor={String(resumo.residentes)}
           detalhe={
             resumo.residentesAtivos === resumo.residentes
-              ? `${resumo.residentesAtivos} com acompanhamento ativo`
+              ? "Com acompanhamento ativo"
               : `${resumo.residentesAtivos} ativo${resumo.residentesAtivos === 1 ? "" : "s"} de ${resumo.residentes}`
           }
           Icone={Users}
@@ -211,7 +233,7 @@ export default async function PortalInicioPage() {
         <Stat
           rotulo="Registros (7 dias)"
           valor={String(resumo.registros7d)}
-          detalhe="Cuidados, medicamentos, sinais vitais e ocorrências"
+          detalhe="Cuidados, medicamentos e ocorrências"
           Icone={ClipboardList}
         />
         <Stat
@@ -219,8 +241,8 @@ export default async function PortalInicioPage() {
           valor={resumo.ultimaAtualizacao ? dataHora(resumo.ultimaAtualizacao) : "—"}
           detalhe={
             resumo.ultimaAtualizacao
-              ? "Horário registrado no dispositivo da equipe"
-              : "Ainda sem registros na linha do tempo"
+              ? "Registro mais recente"
+              : "Sem registros ainda"
           }
           Icone={Clock}
         />
@@ -285,7 +307,10 @@ export default async function PortalInicioPage() {
           )}
         </Bloco>
 
-        <Bloco titulo="Solicitações de entrada">
+        <Bloco
+          titulo="Solicitações de entrada"
+          acao={{ href: "/cliente/solicitacoes", label: "Gerenciar" }}
+        >
           <ListaAdesoes adesoes={adesoes} />
         </Bloco>
       </div>

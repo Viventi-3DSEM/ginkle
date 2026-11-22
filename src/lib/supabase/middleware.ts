@@ -32,6 +32,7 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const pathname = request.nextUrl.pathname;
+  const destinoAtual = `${pathname}${request.nextUrl.search}`;
   const area = casaDaRota(pathname);
 
   // sem Supabase não há sessão: protegida cai no login (sem early-return, pra não abrir a área)
@@ -40,7 +41,7 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       url.search = "";
-      url.searchParams.set("next", pathname);
+      url.searchParams.set("next", destinoAtual);
       return NextResponse.redirect(url);
     }
     return response;
@@ -70,7 +71,7 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       url.search = "";
-      url.searchParams.set("next", pathname);
+      url.searchParams.set("next", destinoAtual);
       return NextResponse.redirect(url);
     }
     return response;

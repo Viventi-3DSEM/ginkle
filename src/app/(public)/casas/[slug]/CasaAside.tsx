@@ -33,15 +33,22 @@ export default function CasaAside({ casa }: { casa: IlpiCompleta }) {
         </dl>
 
         <Link
-          href={`/cadastro?casa=${encodeURIComponent(casa.slug)}`}
+          href={`/cliente/solicitacoes?casa=${encodeURIComponent(casa.slug)}`}
           className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 font-sans text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
-          Tenho interesse
+          Solicitar entrada
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
 
         <p className="mt-3 font-sans text-xs leading-relaxed text-muted-foreground">
-          O contato direto com a instituição é liberado depois do cadastro.
+          Envie o pedido pela sua conta. Ainda não tem cadastro?{" "}
+          <Link
+            href={`/cadastro?casa=${encodeURIComponent(casa.slug)}`}
+            className="font-medium text-brand-strong hover:underline"
+          >
+            Criar conta
+          </Link>
+          .
         </p>
 
         <div className="mt-5 space-y-2 border-t border-border pt-5 font-sans text-xs text-muted-foreground">

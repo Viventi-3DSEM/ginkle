@@ -270,7 +270,7 @@ export default async function ResidenteDetalhePage({ params }: Props) {
 
       <Secao
         titulo="Linha do tempo de cuidados"
-        descricao="Registro somente leitura com o horário capturado no dispositivo da equipe e a confirmação de sincronização no servidor."
+        descricao="Registros lançados pela equipe em ordem cronológica."
       >
         <TimelineResidente registros={residente.registros} diaHoje={diaHoje} />
       </Secao>

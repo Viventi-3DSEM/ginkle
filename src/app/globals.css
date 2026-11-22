@@ -218,6 +218,17 @@
     background: var(--brand);
     color: var(--foreground);
   }
+
+  /* Evita rolagem da página por baixo do modal nativo (<dialog>). */
+  dialog:modal {
+    overscroll-behavior: contain;
+  }
+
+  dialog::backdrop {
+    background: rgb(15 31 16 / 0.55);
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
 }
 
 @keyframes ginkle-rise {

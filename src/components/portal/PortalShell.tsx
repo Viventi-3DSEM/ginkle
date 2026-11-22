@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Globe, Home, LogOut, Users } from "lucide-react";
+import { Building2, Globe, Home, LogOut, UserPlus, Users } from "lucide-react";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import { sair } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,13 @@ const NAV = [
     label: "Residentes",
     curto: "Residentes",
     Icone: Users,
+    exato: false,
+  },
+  {
+    href: "/cliente/solicitacoes",
+    label: "Solicitações",
+    curto: "Pedidos",
+    Icone: UserPlus,
     exato: false,
   },
 ];
@@ -134,7 +141,7 @@ export default function PortalShell({ usuario, children }: Props) {
 
       <nav
         aria-label="Atalhos do portal"
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {NAV.map((item) => (
           <Link
@@ -142,28 +149,28 @@ export default function PortalShell({ usuario, children }: Props) {
             href={item.href}
             aria-current={ativo(item) ? "page" : undefined}
             className={cn(
-              "flex flex-col items-center gap-1 py-2.5 text-[0.7rem] font-medium transition-colors",
+              "flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[0.68rem] font-medium transition-colors",
               ativo(item) ? "text-brand-strong" : "text-muted-foreground",
             )}
           >
             <item.Icone className="size-5" aria-hidden="true" />
-            {item.curto}
+            <span className="max-w-full truncate">{item.curto}</span>
           </Link>
         ))}
         <Link
           href="/casas"
-          className="flex flex-col items-center gap-1 py-2.5 text-[0.7rem] font-medium text-muted-foreground transition-colors"
+          className="flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[0.68rem] font-medium text-muted-foreground transition-colors"
         >
           <Building2 className="size-5" aria-hidden="true" />
-          Casas
+          <span className="max-w-full truncate">Casas</span>
         </Link>
-        <form action={sair}>
+        <form action={sair} className="min-w-0">
           <button
             type="submit"
-            className="flex w-full flex-col items-center gap-1 py-2.5 text-[0.7rem] font-medium text-muted-foreground transition-colors"
+            className="flex w-full min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[0.68rem] font-medium text-muted-foreground transition-colors"
           >
             <LogOut className="size-5" aria-hidden="true" />
-            Sair
+            <span className="max-w-full truncate">Sair</span>
           </button>
         </form>
       </nav>
