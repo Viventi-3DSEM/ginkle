@@ -15,10 +15,19 @@ No SQL Editor do Supabase, rodar **um arquivo por vez, nesta ordem**:
 6. `migrations/0006_policies.sql` — policies de conta, casa, plano, avaliação
 7. `migrations/0007_policies_dados.sql` — policies de residente, registro, chat
 8. `migrations/0008_views_rpc.sql` — avaliação pública, timeline, RPC `criar_ilpi`
-9. `seed.sql` — as 8 casas do protótipo
-10. `seed_fotos_planos.sql` — fotos e planos dessas casas
+9. `migrations/0009_usuario_equipe.sql` — a equipe de uma casa lê o nome dos colegas
+10. `seed.sql` — as 8 casas do protótipo
+11. `seed_fotos_planos.sql` — fotos e planos dessas casas
 
 Todos são idempotentes: pode rodar de novo sem duplicar.
+
+### Demo para a apresentação (opcional)
+
+Depois dos seeds, `node supabase/demo.mjs` cria um cenário de demonstração por
+RLS: 5 contas, 3 casas (duas publicadas e uma em rascunho), residentes,
+registros espalhados por 7 dias, avaliações e adesões. A senha das contas vem de
+`DEMO_PW` (nunca no repositório); o script é idempotente e `demo-limpar.sql`
+desfaz tudo na ordem das chaves estrangeiras.
 
 ## O que mudou na porta MySQL → Postgres
 
@@ -73,9 +82,9 @@ consulta `vinculo_ilpi` entra em recursão infinita (erro 42P17).
 
 Os SQLs foram rodados de ponta a ponta num Postgres 16 em WebAssembly (PGlite),
 com um schema `auth` de mentira (`auth.users` + `auth.uid()` a partir de
-`request.jwt.claim.sub`) e as roles `anon`/`authenticated`. Resultado: as 8
-migrations + os 2 seeds rodam limpos, são idempotentes (2ª rodada sem erro) e
-21 asserções de RLS passam, incluindo:
+`request.jwt.claim.sub`) e as roles `anon`/`authenticated`. Resultado: as
+migrations (0001–0009) + os 2 seeds rodam limpos, são idempotentes (2a rodada
+sem erro) e as asserções de RLS passam, incluindo:
 
 - anônimo lê `ilpi_publica` e toma `42501` em `usuario` e `log_acao`;
 - familiar vê o residente vinculado e um estranho não vê nenhum;

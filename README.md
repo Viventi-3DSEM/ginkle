@@ -42,12 +42,14 @@ um aviso. Para ligar o banco de verdade:
 ```
 src/app/(public)/        landing, /sobre, /casas e /casas/[slug]
 src/app/(auth)/          login, cadastro, recuperar-senha, redefinir-senha
-src/app/(protected)/     home-cliente, home-funcionario, gerente/home-gerente
+src/app/(protected)/     home-cliente, home-funcionario, cadastrar-instituicao e gerente/*
 src/app/auth/            rotas de callback do Supabase Auth
 src/lib/supabase/        clientes (browser, servidor, proxy)
 src/lib/ilpi/            dados e tipos do diretório público
+src/lib/painel/          leitura e server actions do painel do gestor
+src/components/painel/   shell do painel, card e formulário da casa
 src/proxy.ts             renovação de sessão + guarda de rota por papel
-supabase/                migrations, seeds e o mapa do banco
+supabase/                migrations, seeds, demo e o mapa do banco
 ```
 
 ### Papéis
@@ -56,7 +58,10 @@ O papel não é uma coluna: sai do vínculo com a casa (`vinculo_ilpi`).
 
 - sem vínculo → familiar · `/home-cliente`
 - `FUNCIONARIO` → `/home-funcionario`
-- `GESTOR` → `/gerente/home-gerente`
+- `GESTOR` → `/gerente`
+
+Quem ainda não tem vínculo nenhum passa por `/cadastrar-instituicao`: ao criar a
+primeira casa pela RPC `criar_ilpi()`, a pessoa vira `GESTOR` dela.
 
 O `src/proxy.ts` renova a sessão a cada request e desvia quem tenta abrir uma
 área que não é a sua.
