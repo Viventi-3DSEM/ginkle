@@ -10,6 +10,7 @@ import {
 const AREAS_PROTEGIDAS: { prefixo: string; cargo?: "GESTOR" | "FUNCIONARIO" }[] = [
   { prefixo: "/gerente", cargo: "GESTOR" },
   { prefixo: "/home-funcionario", cargo: "FUNCIONARIO" },
+  { prefixo: "/cliente" },
   { prefixo: "/home-cliente" },
   // Porta de entrada do gestor: só exige sessão, porque é aqui que a pessoa
   // deixa de ser familiar e passa a ter vínculo de GESTOR com a primeira casa.
@@ -99,7 +100,7 @@ export async function updateSession(request: NextRequest) {
       ? "/gerente"
       : cargo === "FUNCIONARIO"
         ? "/home-funcionario"
-        : "/home-cliente";
+        : "/cliente";
 
   if (TELAS_AUTH.includes(pathname)) {
     const url = request.nextUrl.clone();

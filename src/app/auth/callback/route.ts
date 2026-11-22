@@ -6,10 +6,10 @@ import { supabaseConfigurado } from "@/lib/supabase/env";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/home-cliente";
+  const next = searchParams.get("next") ?? "/cliente";
   const erro = searchParams.get("error_description") ?? searchParams.get("error");
 
-  const destino = next.startsWith("/") && !next.startsWith("//") ? next : "/home-cliente";
+  const destino = next.startsWith("/") && !next.startsWith("//") ? next : "/cliente";
 
   if (erro) {
     return NextResponse.redirect(`${origin}/login?erro=${encodeURIComponent(erro)}`);
