@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import LoginForm from "./LoginForm";
+import { CONTAS_DEMO, demoHabilitado } from "@/lib/auth/demo";
 
 export const metadata: Metadata = {
   title: "Entrar · Ginkle",
@@ -33,5 +34,16 @@ export default async function Login({
       ? params.next
       : undefined;
 
-  return <LoginForm erroInicial={erro} avisoInicial={aviso} destino={destino} />;
+  const contasDemo = demoHabilitado()
+    ? CONTAS_DEMO.map(({ papel, rotulo, nome }) => ({ papel, rotulo, nome }))
+    : undefined;
+
+  return (
+    <LoginForm
+      erroInicial={erro}
+      avisoInicial={aviso}
+      destino={destino}
+      contasDemo={contasDemo}
+    />
+  );
 }

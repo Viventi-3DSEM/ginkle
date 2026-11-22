@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { entrar, type Estado } from "../actions";
+import { entrar, entrarDemo, type Estado } from "../actions";
 
 const inputClass =
   "w-full border-b border-input bg-transparent py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-brand-strong";
@@ -21,10 +21,12 @@ type Props = {
   erroInicial?: string;
   avisoInicial?: string;
   destino?: string;
+  contasDemo?: { papel: string; rotulo: string; nome: string }[];
 };
 
-export default function LoginForm({ erroInicial, avisoInicial, destino }: Props) {
+export default function LoginForm({ erroInicial, avisoInicial, destino, contasDemo }: Props) {
   const [estado, acao, enviando] = useActionState<Estado, FormData>(entrar, {});
+  const [estadoDemo, acaoDemo, entrandoDemo] = useActionState<Estado, FormData>(entrarDemo, {});
   const [showPw, setShowPw] = useState(false);
 
   const aviso = estado.ok ?? avisoInicial;
@@ -115,6 +117,38 @@ export default function LoginForm({ erroInicial, avisoInicial, destino }: Props)
             Cadastre-se
           </Link>
         </p>
+
+        {contasDemo?.length ? (
+          <div id="demo-login" className="mt-8 border-t border-border pt-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Contas de demonstração
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Entram direto, sem senha, para apresentação.
+            </p>
+            <form action={acaoDemo} className="mt-3 grid gap-2">
+              {destino ? <input type="hidden" name="next" value={destino} /> : null}
+              {contasDemo.map((conta) => (
+                <button
+                  key={conta.papel}
+                  type="submit"
+                  name="papel"
+                  value={conta.papel}
+                  disabled={entrandoDemo}
+                  className="flex w-full items-center justify-between gap-3 rounded-sm border border-input px-4 py-2.5 text-left text-sm transition-colors hover:border-brand-strong disabled:opacity-60"
+                >
+                  <span className="font-medium">{conta.rotulo}</span>
+                  <span className="text-xs text-muted-foreground">{conta.nome}</span>
+                </button>
+              ))}
+            </form>
+            {estadoDemo.erro ? (
+              <p role="alert" className={`${erroClass} mt-3`}>
+                {estadoDemo.erro}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <Link

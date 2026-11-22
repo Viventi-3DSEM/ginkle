@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/env";
 import { cargoDoUsuario, homePorCargo } from "@/lib/auth/sessao";
+import { contaDemoPorPapel, demoHabilitado, senhaDemo } from "@/lib/auth/demo";
 import { cpfValido, soDigitos } from "@/lib/validacao/cpf";
 import { telefoneValido } from "@/lib/validacao/telefone";
 
@@ -58,6 +59,28 @@ export async function entrar(_estado: Estado, form: FormData): Promise<Estado> {
   redirect(seguro ?? homePorCargo(cargo));
 }
 
+// Entrada de demonstração (banca): o botão manda só o papel, e o servidor usa a
+// senha do ambiente. Desligado por padrão — sem DEMO_HABILITADO=1 não entra.
+export async function entrarDemo(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+  if (!demoHabilitado()) return { erro: "As contas de demonstração estão desligadas." };
+
+  const conta = contaDemoPorPapel(texto(form, "papel"));
+  const senha = senhaDemo();
+  if (!conta || !senha) return { erro: "Conta de demonstração inválida." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword({
+    email: conta.email,
+    password: senha,
+  });
+  if (error) return { erro: traduzirErro(error.message) };
+
+  const destino = texto(form, "next");
+  const seguro = destino.startsWith("/") && !destino.startsWith("//") ? destino : null;
+  redirect(seguro ?? homePorCargo(await cargoDoUsuario()));
+}
+
 export async function cadastrar(_estado: Estado, form: FormData): Promise<Estado> {
   if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
 
@@ -83,14 +106,14 @@ export async function cadastrar(_estado: Estado, form: FormData): Promise<Estado
     password: senha,
     options: {
       data: { nome, cpf: cpf || null, telefone: telefone || null },
-      emailRedirectTo: `${await origem()}/auth/callback?next=/home-cliente`,
+      emailRedirectTo: `${await origem()}/auth/callback?next=/cliente`,
     },
   });
 
   if (error) return { erro: traduzirErro(error.message) };
 
   // Sem confirmação de e-mail, o Supabase devolve sessão na hora.
-  if (data.session) redirect("/home-cliente");
+  if (data.session) redirect("/cliente");
 
   return {
     ok: `Enviamos um link de confirmação para ${email}. Abra o e-mail para ativar a conta.`,
