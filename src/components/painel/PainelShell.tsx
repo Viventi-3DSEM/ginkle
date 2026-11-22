@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Globe, LayoutDashboard, LogOut, Tag } from "lucide-react";
+import { Building2, Globe, LayoutDashboard, LogOut, Tag, Users } from "lucide-react";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import { sair } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,13 @@ const NAV = [
     label: "Minhas casas",
     curto: "Casas",
     Icone: Building2,
+    exato: false,
+  },
+  {
+    href: "/gerente/residentes",
+    label: "Residentes",
+    curto: "Residentes",
+    Icone: Users,
     exato: false,
   },
   {
@@ -107,10 +114,14 @@ export default function PainelShell({ usuario, children }: Props) {
             <Image src="/ginkle-mark.svg" alt="" width={24} height={24} className="h-6 w-6" />
             <span className="font-heading text-base font-bold tracking-tight">Ginkle</span>
           </Link>
-          <div className="flex items-center gap-2">
-            <span className="max-w-32 truncate text-xs text-muted-foreground">
-              {usuario.nome}
-            </span>
+          <div className="flex items-center gap-1">
+            <Link
+              href="/"
+              aria-label="Ver o site"
+              className="inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <Globe className="size-4" aria-hidden="true" />
+            </Link>
             <ThemeToggle />
           </div>
         </header>
@@ -138,13 +149,6 @@ export default function PainelShell({ usuario, children }: Props) {
             <span className="max-w-full truncate">{item.curto}</span>
           </Link>
         ))}
-        <Link
-          href="/"
-          className="flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[0.68rem] font-medium text-muted-foreground transition-colors"
-        >
-          <Globe className="size-5" aria-hidden="true" />
-          <span className="max-w-full truncate">Site</span>
-        </Link>
         <form action={sair} className="min-w-0">
           <button
             type="submit"

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/env";
-import { soDigitos } from "@/lib/validacao/cpf";
+import { cpfValido, soDigitos } from "@/lib/validacao/cpf";
 import { cnpjValido, formatarCnpj } from "@/lib/validacao/cnpj";
 import { formatarTelefone, telefoneValido } from "@/lib/validacao/telefone";
 import { slugificar, slugValido } from "@/lib/validacao/slug";
@@ -448,4 +448,290 @@ export async function excluirPlano(_estado: Estado, form: FormData): Promise<Est
 
   revalidarPlanos(casaId, (casa?.slug as string | undefined) ?? null);
   return { ok: "Plano excluído." };
+}
+
+const DATA_PURA_RE = /^\d{4}-\d{2}-\d{2}$/;
+const STATUS_RESIDENTE_VALIDOS = new Set(["ATIVO", "INATIVO", "ALTA", "OBITO"]);
+const SEXOS_VALIDOS = new Set(["M", "F", "O"]);
+
+function dataValida(valor: string): boolean {
+  if (!DATA_PURA_RE.test(valor)) return false;
+  const [ano, mes, dia] = valor.split("-").map(Number);
+  const d = new Date(Date.UTC(ano, mes - 1, dia));
+  return (
+    d.getUTCFullYear() === ano &&
+    d.getUTCMonth() === mes - 1 &&
+    d.getUTCDate() === dia
+  );
+}
+
+function revalidarResidentes(casaId: string, residenteId?: string) {
+  revalidatePath("/gerente");
+  revalidatePath("/gerente/residentes");
+  revalidatePath("/gerente/casas");
+  revalidatePath(`/gerente/casas/${casaId}`);
+  revalidatePath("/cliente");
+  revalidatePath("/cliente/residentes");
+  revalidatePath("/cliente/solicitacoes");
+  if (residenteId) revalidatePath(`/cliente/residentes/${residenteId}`);
+}
+
+function lerDadosResidente(form: FormData, cpfAtual?: string): {
+  dados?: {
+    nome: string;
+    cpf: string;
+    nascimento: string;
+    sexo: string;
+    ingresso: string;
+    status: string;
+    observacoesMedicas: string | null;
+  };
+  erro?: string;
+} {
+  const nome = texto(form, "nome");
+  const cpf = soDigitos(texto(form, "cpf"));
+  const nascimento = texto(form, "nascimento");
+  const sexo = texto(form, "sexo").toUpperCase();
+  const ingresso = texto(form, "ingresso");
+  const status = texto(form, "status").toUpperCase() || "ATIVO";
+  const observacoes = texto(form, "observacoesMedicas");
+
+  if (nome.length < 3) return { erro: "Informe o nome completo do residente." };
+  if (nome.length > 120) return { erro: "O nome aceita até 120 caracteres." };
+  if (cpf.length !== 11) return { erro: "O CPF precisa ter 11 dígitos." };
+  if (cpf !== cpfAtual && !cpfValido(cpf)) {
+    return { erro: "CPF inválido. Confira os números." };
+  }
+  if (!dataValida(nascimento)) return { erro: "Informe uma data de nascimento válida." };
+  if (!SEXOS_VALIDOS.has(sexo)) return { erro: "Selecione o sexo do residente." };
+  if (!dataValida(ingresso)) return { erro: "Informe uma data de ingresso válida." };
+  if (!STATUS_RESIDENTE_VALIDOS.has(status)) return { erro: "Situação inválida." };
+  if (observacoes.length > 2000) {
+    return { erro: "As observações médicas aceitam até 2000 caracteres." };
+  }
+
+  const hojeIso = new Date().toISOString().slice(0, 10);
+  if (nascimento > hojeIso) {
+    return { erro: "A data de nascimento não pode estar no futuro." };
+  }
+
+  return {
+    dados: {
+      nome,
+      cpf,
+      nascimento,
+      sexo,
+      ingresso,
+      status,
+      observacoesMedicas: observacoes || null,
+    },
+  };
+}
+
+export async function criarResidente(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const casaId = texto(form, "casaId");
+  if (!UUID_RE.test(casaId)) return { erro: "Selecione uma casa válida." };
+
+  const { dados, erro } = lerDadosResidente(form);
+  if (!dados) return { erro: erro ?? "Revise os dados do residente." };
+
+  const supabase = await createClient();
+  // Sem `.select()`: RETURNING em residente estoura 42501 porque a policy de
+  // SELECT (`pode_ver_residente`) consulta residente por subquery no mesmo snapshot.
+  const { error } = await supabase.from("residente").insert({
+    id_ilpi: casaId,
+    nome: dados.nome,
+    cpf: dados.cpf,
+    data_nascimento: dados.nascimento,
+    sexo: dados.sexo,
+    data_ingresso: dados.ingresso,
+    status: "ATIVO",
+    observacoes_medicas: dados.observacoesMedicas,
+  });
+
+  if (error) {
+    if (error.code === "23505") {
+      return { erro: "Já existe um residente cadastrado com este CPF." };
+    }
+    return { erro: mensagemErro(error) };
+  }
+
+  revalidarResidentes(casaId);
+  return { ok: `Residente "${dados.nome}" cadastrado.` };
+}
+
+export async function atualizarResidente(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const id = texto(form, "id");
+  const casaId = texto(form, "casaId");
+  const cpfAtual = soDigitos(texto(form, "cpfAtual"));
+  if (!UUID_RE.test(id) || !UUID_RE.test(casaId)) return { erro: "Residente não encontrado." };
+
+  const { dados, erro } = lerDadosResidente(form, cpfAtual);
+  if (!dados) return { erro: erro ?? "Revise os dados do residente." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("residente")
+    .update({
+      nome: dados.nome,
+      cpf: dados.cpf,
+      data_nascimento: dados.nascimento,
+      sexo: dados.sexo,
+      data_ingresso: dados.ingresso,
+      status: dados.status,
+      observacoes_medicas: dados.observacoesMedicas,
+    })
+    .eq("id_residente", id)
+    .eq("id_ilpi", casaId)
+    .select("id_residente");
+
+  if (error) {
+    if (error.code === "23505") {
+      return { erro: "Já existe outro residente cadastrado com este CPF." };
+    }
+    return { erro: mensagemErro(error) };
+  }
+  if (!data || data.length === 0) {
+    return { erro: "Residente não encontrado ou sem permissão." };
+  }
+
+  revalidarResidentes(casaId, id);
+  return { ok: `Ficha de "${dados.nome}" atualizada.` };
+}
+
+export async function vincularFamiliar(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const residenteId = texto(form, "residenteId");
+  const casaId = texto(form, "casaId");
+  const email = texto(form, "email").toLowerCase();
+  const parentesco = texto(form, "parentesco");
+  const responsavelPrincipal =
+    form.get("responsavelPrincipal") === "on" || form.get("responsavelPrincipal") === "true";
+
+  if (!UUID_RE.test(residenteId) || !UUID_RE.test(casaId)) {
+    return { erro: "Residente não encontrado." };
+  }
+  if (!EMAIL_RE.test(email)) return { erro: "Informe o e-mail da conta do familiar." };
+  if (parentesco.length < 2 || parentesco.length > 60) {
+    return { erro: "Informe o parentesco (ex.: Filha, Sobrinho)." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("vincular_familiar_por_email", {
+    p_residente: residenteId,
+    p_email: email,
+    p_parentesco: parentesco,
+    p_responsavel_principal: responsavelPrincipal,
+  });
+
+  if (error) {
+    if (error.code === "P0002") {
+      return {
+        erro: "Nenhuma conta encontrada com esse e-mail. O familiar precisa criar conta no Ginkle primeiro.",
+      };
+    }
+    if (error.code === "42501") {
+      return { erro: "Você não tem permissão para vincular familiares a este residente." };
+    }
+    if (error.code === "22023") return { erro: error.message };
+    return { erro: "Não foi possível vincular o familiar. Tente novamente." };
+  }
+
+  revalidarResidentes(casaId, residenteId);
+  return { ok: "Familiar vinculado ao residente." };
+}
+
+export async function removerFamiliar(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const id = texto(form, "id");
+  const casaId = texto(form, "casaId");
+  const residenteId = texto(form, "residenteId");
+  if (!UUID_RE.test(id) || !UUID_RE.test(casaId)) return { erro: "Vínculo não encontrado." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("familiar_residente")
+    .delete()
+    .eq("id_familiar_residente", id)
+    .select("id_familiar_residente");
+
+  if (error) return { erro: mensagemErro(error) };
+  if (!data || data.length === 0) return { erro: "Vínculo não encontrado ou sem permissão." };
+
+  revalidarResidentes(casaId, UUID_RE.test(residenteId) ? residenteId : undefined);
+  return { ok: "Vínculo familiar removido." };
+}
+
+export async function responderSolicitacao(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const id = texto(form, "id");
+  const casaId = texto(form, "casaId");
+  const decisao = texto(form, "decisao").toUpperCase();
+  const residenteId = texto(form, "residenteId");
+  const parentesco = texto(form, "parentesco");
+  const responsavelPrincipal = form.get("responsavelPrincipal") === "on";
+
+  if (!UUID_RE.test(id) || !UUID_RE.test(casaId)) return { erro: "Solicitação não encontrada." };
+  if (decisao !== "APROVADA" && decisao !== "RECUSADA") {
+    return { erro: "Decisão inválida." };
+  }
+
+  if (decisao === "APROVADA" && residenteId) {
+    if (!UUID_RE.test(residenteId)) return { erro: "Residente selecionado inválido." };
+    if (parentesco.length < 2 || parentesco.length > 60) {
+      return { erro: "Informe o parentesco para vincular o familiar ao residente." };
+    }
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("adesao_ilpi")
+    .update({ status: decisao, data_resposta: new Date().toISOString() })
+    .eq("id_adesao", id)
+    .eq("id_ilpi", casaId)
+    .eq("status", "PENDENTE")
+    .select("id_adesao, id_usuario");
+
+  if (error) return { erro: mensagemErro(error) };
+  const atualizada = (data ?? []) as unknown as { id_adesao: string; id_usuario: string }[];
+  if (atualizada.length === 0) {
+    return { erro: "Esta solicitação não está mais pendente ou não foi encontrada." };
+  }
+
+  if (decisao === "APROVADA" && residenteId) {
+    const { error: erroVinculo } = await supabase
+      .from("familiar_residente")
+      .upsert(
+        {
+          id_usuario: atualizada[0].id_usuario,
+          id_residente: residenteId,
+          parentesco,
+          responsavel_principal: responsavelPrincipal,
+        },
+        { onConflict: "id_usuario,id_residente" },
+      );
+
+    revalidarResidentes(casaId, residenteId);
+    if (erroVinculo) {
+      return {
+        ok: "Solicitação aprovada, mas não foi possível vincular ao residente agora. Vincule pela ficha do residente.",
+      };
+    }
+    return { ok: "Solicitação aprovada e familiar vinculado ao residente." };
+  }
+
+  revalidarResidentes(casaId);
+  return {
+    ok:
+      decisao === "APROVADA"
+        ? "Solicitação aprovada. Você pode vincular a família a um residente na ficha dele."
+        : "Solicitação recusada.",
+  };
 }

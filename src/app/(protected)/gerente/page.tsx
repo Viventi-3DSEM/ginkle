@@ -195,7 +195,10 @@ export default async function PainelPage() {
           )}
         </Bloco>
 
-        <Bloco titulo="Solicitações pendentes">
+        <Bloco
+          titulo="Solicitações pendentes"
+          acao={{ href: "/gerente/residentes", label: "Gerenciar" }}
+        >
           {solicitacoesPendentes.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Nenhuma solicitação pendente.
@@ -205,16 +208,16 @@ export default async function PainelPage() {
               {solicitacoesPendentes.slice(0, 5).map((solicitacao) => (
                 <li key={solicitacao.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{solicitacao.casa}</p>
+                    <p className="truncate text-sm font-medium">{solicitacao.solicitante}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Pedido em {dataHora(solicitacao.quando)}
+                      {solicitacao.casa} · {dataHora(solicitacao.quando)}
                     </p>
                   </div>
                   <Link
-                    href={`/gerente/casas/${solicitacao.casaId}`}
+                    href={`/gerente/residentes?casa=${solicitacao.casaId}`}
                     className="shrink-0 text-xs font-medium text-brand-strong hover:underline"
                   >
-                    Abrir casa
+                    Responder
                   </Link>
                 </li>
               ))}

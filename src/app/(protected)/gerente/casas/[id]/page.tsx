@@ -262,7 +262,10 @@ export default async function CasaDetalhePage({ params }: Props) {
         </Secao>
       </div>
 
-      <Secao titulo="Residentes">
+      <Secao
+        titulo="Residentes"
+        acao={{ href: `/gerente/residentes?casa=${casa.id}`, label: "Gerenciar" }}
+      >
         {casa.residentesLista.length === 0 ? (
           <Vazio texto="Nenhum residente cadastrado ainda." />
         ) : (
@@ -372,14 +375,20 @@ export default async function CasaDetalhePage({ params }: Props) {
           )}
         </Secao>
 
-        <Secao titulo="Solicitações de entrada">
+        <Secao
+          titulo="Solicitações de entrada"
+          acao={{ href: `/gerente/residentes?casa=${casa.id}`, label: "Gerenciar" }}
+        >
           {casa.solicitacoesLista.length === 0 ? (
             <Vazio texto="Nenhuma solicitação recebida." />
           ) : (
             <ul className="divide-y divide-border">
               {casa.solicitacoesLista.map((solicitacao) => (
                 <li key={solicitacao.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                  <p className="text-sm text-muted-foreground">{dataCurta(solicitacao.quando)}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{solicitacao.solicitante}</p>
+                    <p className="text-xs text-muted-foreground">{dataCurta(solicitacao.quando)}</p>
+                  </div>
                   <span
                     className={
                       solicitacao.status === "PENDENTE"

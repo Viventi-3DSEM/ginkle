@@ -48,6 +48,7 @@ export type SolicitacaoPendente = {
   id: string;
   casa: string;
   casaId: string;
+  solicitante: string;
   quando: string;
 };
 
@@ -93,7 +94,7 @@ export type CasaCompleta = CasaDoGestor & {
     status: string;
     ingresso: string;
   }[];
-  solicitacoesLista: { id: string; status: string; quando: string }[];
+  solicitacoesLista: { id: string; solicitante: string; status: string; quando: string }[];
   avaliacoesLista: {
     nota: number;
     comentario: string | null;
@@ -202,7 +203,7 @@ export async function painelDoGestor(): Promise<PainelDoGestor> {
         .eq("ativo", true),
       supabase
         .from("adesao_ilpi")
-        .select("id_adesao, id_ilpi, status, data_solicitacao")
+        .select("id_adesao, id_ilpi, status, data_solicitacao, usuario(nome)")
         .in("id_ilpi", ids)
         .eq("status", "PENDENTE")
         .order("data_solicitacao", { ascending: false }),
@@ -336,10 +337,12 @@ export async function painelDoGestor(): Promise<PainelDoGestor> {
       id_adesao: string;
       id_ilpi: string;
       data_solicitacao: string;
+      usuario: { nome: string } | null;
     }[]).map((a) => ({
       id: a.id_adesao,
       casaId: a.id_ilpi,
       casa: nomePorCasa.get(a.id_ilpi) ?? "Casa",
+      solicitante: a.usuario?.nome ?? "Familiar",
       quando: a.data_solicitacao,
     })),
     atividade: linhaRegistros.map((r) => ({
@@ -402,7 +405,7 @@ export async function casaDoGestor(id: string): Promise<CasaCompleta | null> {
         .order("cargo", { ascending: true }),
       supabase
         .from("adesao_ilpi")
-        .select("id_adesao, status, data_solicitacao")
+        .select("id_adesao, status, data_solicitacao, usuario(nome)")
         .eq("id_ilpi", id)
         .order("data_solicitacao", { ascending: false })
         .limit(20),
@@ -511,8 +514,10 @@ export async function casaDoGestor(id: string): Promise<CasaCompleta | null> {
       id_adesao: string;
       status: string;
       data_solicitacao: string;
+      usuario: { nome: string } | null;
     }[]).map((a) => ({
       id: a.id_adesao,
+      solicitante: a.usuario?.nome ?? "Familiar",
       status: a.status,
       quando: a.data_solicitacao,
     })),
@@ -605,4 +610,175 @@ export async function planosDoGestor(): Promise<PlanosDoGestor> {
     });
 
   return { casas, planos };
+}
+
+export type FamiliarDoResidente = {
+  id: string;
+  usuarioId: string;
+  nome: string;
+  email: string;
+  telefone: string | null;
+  parentesco: string;
+  responsavelPrincipal: boolean;
+};
+
+export type ResidenteDoGestor = {
+  id: string;
+  casaId: string;
+  casaNome: string;
+  nome: string;
+  cpf: string;
+  nascimento: string;
+  sexo: string;
+  ingresso: string;
+  status: string;
+  observacoesMedicas: string | null;
+  familiares: FamiliarDoResidente[];
+};
+
+export type SolicitacaoDoGestor = {
+  id: string;
+  casaId: string;
+  casaNome: string;
+  usuarioId: string;
+  solicitanteNome: string;
+  solicitanteEmail: string;
+  solicitanteTelefone: string | null;
+  status: string;
+  quando: string;
+  respondidaEm: string | null;
+};
+
+export type ResidentesDoGestor = {
+  casas: { id: string; nome: string; slug: string }[];
+  residentes: ResidenteDoGestor[];
+  solicitacoes: SolicitacaoDoGestor[];
+};
+
+export async function residentesDoGestor(): Promise<ResidentesDoGestor> {
+  const supabase = await createClientOpcional();
+  if (!supabase) return { casas: [], residentes: [], solicitacoes: [] };
+
+  const ids = await idsDasMinhasCasas(supabase);
+  if (ids.length === 0) return { casas: [], residentes: [], solicitacoes: [] };
+
+  const [casasRes, residentesRes, adesoesRes] = await Promise.all([
+    supabase
+      .from("ilpi")
+      .select("id_ilpi, nome, slug")
+      .in("id_ilpi", ids)
+      .order("nome", { ascending: true }),
+    supabase
+      .from("residente")
+      .select(
+        "id_residente, id_ilpi, nome, cpf, data_nascimento, sexo, data_ingresso, status, observacoes_medicas",
+      )
+      .in("id_ilpi", ids)
+      .order("nome", { ascending: true }),
+    supabase
+      .from("adesao_ilpi")
+      .select(
+        "id_adesao, id_ilpi, id_usuario, status, data_solicitacao, data_resposta, usuario(nome, email, telefone)",
+      )
+      .in("id_ilpi", ids)
+      .order("data_solicitacao", { ascending: false })
+      .limit(100),
+  ]);
+
+  const casas = ((casasRes.data ?? []) as unknown as {
+    id_ilpi: string;
+    nome: string;
+    slug: string;
+  }[]).map((c) => ({ id: c.id_ilpi, nome: c.nome, slug: c.slug }));
+
+  const casaPorId = new Map(casas.map((c) => [c.id, c]));
+
+  const linhasResidentes = (residentesRes.data ?? []) as unknown as {
+    id_residente: string;
+    id_ilpi: string;
+    nome: string;
+    cpf: string;
+    data_nascimento: string;
+    sexo: string;
+    data_ingresso: string;
+    status: string;
+    observacoes_medicas: string | null;
+  }[];
+
+  const idsResidentes = linhasResidentes.map((r) => r.id_residente);
+  const familiaresPorResidente = new Map<string, FamiliarDoResidente[]>();
+
+  if (idsResidentes.length > 0) {
+    const { data: famData } = await supabase
+      .from("familiar_residente")
+      .select(
+        "id_familiar_residente, id_residente, id_usuario, parentesco, responsavel_principal, usuario(nome, email, telefone)",
+      )
+      .in("id_residente", idsResidentes);
+
+    for (const f of (famData ?? []) as unknown as {
+      id_familiar_residente: string;
+      id_residente: string;
+      id_usuario: string;
+      parentesco: string;
+      responsavel_principal: boolean;
+      usuario: { nome: string; email: string; telefone: string | null } | null;
+    }[]) {
+      const lista = familiaresPorResidente.get(f.id_residente) ?? [];
+      lista.push({
+        id: f.id_familiar_residente,
+        usuarioId: f.id_usuario,
+        nome: f.usuario?.nome ?? "Familiar",
+        email: f.usuario?.email ?? "",
+        telefone: f.usuario?.telefone ?? null,
+        parentesco: f.parentesco,
+        responsavelPrincipal: Boolean(f.responsavel_principal),
+      });
+      familiaresPorResidente.set(f.id_residente, lista);
+    }
+  }
+
+  const residentes: ResidenteDoGestor[] = linhasResidentes
+    .filter((r) => casaPorId.has(r.id_ilpi))
+    .map((r) => ({
+      id: r.id_residente,
+      casaId: r.id_ilpi,
+      casaNome: casaPorId.get(r.id_ilpi)!.nome,
+      nome: r.nome,
+      cpf: r.cpf,
+      nascimento: r.data_nascimento,
+      sexo: r.sexo,
+      ingresso: r.data_ingresso,
+      status: r.status,
+      observacoesMedicas: r.observacoes_medicas,
+      familiares: (familiaresPorResidente.get(r.id_residente) ?? []).sort((a, b) =>
+        Number(b.responsavelPrincipal) - Number(a.responsavelPrincipal) ||
+        a.nome.localeCompare(b.nome),
+      ),
+    }));
+
+  const solicitacoes: SolicitacaoDoGestor[] = ((adesoesRes.data ?? []) as unknown as {
+    id_adesao: string;
+    id_ilpi: string;
+    id_usuario: string;
+    status: string;
+    data_solicitacao: string;
+    data_resposta: string | null;
+    usuario: { nome: string; email: string; telefone: string | null } | null;
+  }[])
+    .filter((a) => casaPorId.has(a.id_ilpi))
+    .map((a) => ({
+      id: a.id_adesao,
+      casaId: a.id_ilpi,
+      casaNome: casaPorId.get(a.id_ilpi)!.nome,
+      usuarioId: a.id_usuario,
+      solicitanteNome: a.usuario?.nome ?? "Familiar",
+      solicitanteEmail: a.usuario?.email ?? "",
+      solicitanteTelefone: a.usuario?.telefone ?? null,
+      status: a.status,
+      quando: a.data_solicitacao,
+      respondidaEm: a.data_resposta,
+    }));
+
+  return { casas, residentes, solicitacoes };
 }
