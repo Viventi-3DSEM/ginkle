@@ -129,14 +129,14 @@ export default function CasaForm({
 
             <Campo
               id="slug"
-              rotulo="Endereço da página"
+              rotulo="Link da página"
               placeholder="vida-plena"
               value={slugAtual}
               onChange={(e) => {
                 setSlugTravado(true);
                 setSlug(e.target.value);
               }}
-              dica={`Aparece em ginkle.me/casas/${slugAtual || "sua-casa"}`}
+              dica={`ginkle.me/casas/${slugAtual || "sua-casa"}`}
             />
 
             <div>
@@ -224,10 +224,7 @@ export default function CasaForm({
         </section>
 
         <section className="rounded-sm border border-border bg-card p-5 sm:p-7">
-          <h2 className="font-heading text-lg font-semibold">Vitrine</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            É o que as famílias veem no diretório.
-          </p>
+          <h2 className="font-heading text-lg font-semibold">Apresentação</h2>
           <div className="mt-6 grid gap-6 sm:grid-cols-6">
             <Campo
               id="vagas"

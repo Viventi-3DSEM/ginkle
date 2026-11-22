@@ -25,7 +25,7 @@ export default function CasaCard({ casa }: { casa: CasaDoGestor }) {
           <h3 className="font-heading text-base font-semibold">{casa.nome}</h3>
           {casa.publicado ? null : (
             <span className="rounded-full bg-muted px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
-              Rascunho
+              Privada
             </span>
           )}
           {casa.destaque ? (

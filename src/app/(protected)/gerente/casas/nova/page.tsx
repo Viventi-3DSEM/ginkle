@@ -8,7 +8,7 @@ export default function NovaCasaPage() {
     <CasaForm
       acao={criarCasa}
       titulo="Cadastrar casa"
-      subtitulo="A casa entra no ar no diretório assim que você salvar. Dá para deixar em rascunho depois, na página dela."
+      subtitulo="Preencha os dados da instituição. Você pode alterar a visibilidade quando quiser."
       rotulo="Cadastrar casa"
       voltarPara="/gerente/casas"
     />

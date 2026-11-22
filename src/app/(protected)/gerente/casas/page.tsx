@@ -32,8 +32,7 @@ export default async function MinhasCasasPage() {
         <div className="rounded-sm border border-dashed border-border bg-card p-8 text-center">
           <h2 className="font-heading text-lg font-semibold">Comece cadastrando a casa</h2>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            Nome, CNPJ e endereço já bastam para a página pública existir. Depois você
-            completa vagas, planos e a equipe.
+            Cadastre sua instituição para começar a gerenciar residentes, planos e equipe.
           </p>
         </div>
       ) : (

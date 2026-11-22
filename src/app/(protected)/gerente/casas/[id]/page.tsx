@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  ArrowRight,
   ExternalLink,
   Globe,
   Mail,
@@ -11,7 +12,7 @@ import {
   Phone,
   Star,
 } from "lucide-react";
-import { alternarPublicado } from "@/lib/painel/actions";
+import VisibilidadeCasa from "@/components/painel/VisibilidadeCasa";
 import { casaDoGestor } from "@/lib/painel/dados";
 import { dataCurta, idade, reais } from "@/lib/painel/formato";
 
@@ -39,19 +40,29 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 function Secao({
   titulo,
-  descricao,
+  acao,
   children,
   className,
 }: {
   titulo: string;
-  descricao?: string;
+  acao?: { href: string; label: string };
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <section className={`rounded-sm border border-border bg-card p-5 sm:p-6 ${className ?? ""}`}>
-      <h2 className="font-heading text-lg font-semibold">{titulo}</h2>
-      {descricao ? <p className="mt-1 text-xs text-muted-foreground">{descricao}</p> : null}
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="font-heading text-lg font-semibold">{titulo}</h2>
+        {acao ? (
+          <Link
+            href={acao.href}
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-brand-strong"
+          >
+            {acao.label}
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+          </Link>
+        ) : null}
+      </div>
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -105,11 +116,11 @@ export default async function CasaDetalhePage({ params }: Props) {
                 <h1 className="font-heading text-2xl font-semibold">{casa.nome}</h1>
                 {casa.publicado ? (
                   <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-wider text-brand-strong">
-                    No diretório
+                    Pública
                   </span>
                 ) : (
                   <span className="rounded-full bg-muted px-2.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Rascunho
+                    Privada
                   </span>
                 )}
                 {casa.destaque ? (
@@ -132,7 +143,7 @@ export default async function CasaDetalhePage({ params }: Props) {
                   className="inline-flex items-center gap-2 rounded-sm border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary"
                 >
                   <ExternalLink className="size-4" aria-hidden="true" />
-                  Ver no site
+                  Ver página
                 </Link>
               ) : null}
               <Link
@@ -145,22 +156,8 @@ export default async function CasaDetalhePage({ params }: Props) {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-border pt-5">
-            <form action={alternarPublicado}>
-              <input type="hidden" name="id" value={casa.id} />
-              <input type="hidden" name="publicado" value={casa.publicado ? "false" : "true"} />
-              <button
-                type="submit"
-                className="rounded-sm border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary"
-              >
-                {casa.publicado ? "Tirar do diretório" : "Publicar no diretório"}
-              </button>
-            </form>
-            <p className="text-xs text-muted-foreground">
-              {casa.publicado
-                ? "Qualquer família encontra a casa em /casas e pode pedir entrada."
-                : "Rascunho: a página pública responde 404 até você publicar."}
-            </p>
+          <div className="mt-6 border-t border-border pt-5">
+            <VisibilidadeCasa casaId={casa.id} publicado={casa.publicado} />
           </div>
         </div>
       </div>
@@ -169,20 +166,20 @@ export default async function CasaDetalhePage({ params }: Props) {
         <Numero
           rotulo="Residentes"
           valor={String(casa.residentes)}
-          detalhe={`${casa.residentesLista.length} no total, incluindo inativos`}
+          detalhe={
+            casa.residentesLista.length === casa.residentes
+              ? "Ativos"
+              : `${casa.residentesLista.length} cadastrados no total`
+          }
         />
-        <Numero rotulo="Equipe" valor={String(casa.equipe)} detalhe="Vínculos ativos" />
-        <Numero
-          rotulo="Vagas"
-          valor={String(casa.vagas)}
-          detalhe="Disponíveis hoje, no diretório"
-        />
+        <Numero rotulo="Equipe" valor={String(casa.equipe)} detalhe="Profissionais ativos" />
+        <Numero rotulo="Vagas" valor={String(casa.vagas)} detalhe="Disponíveis" />
         <Numero
           rotulo="Avaliação"
           valor={casa.nota === null ? "—" : casa.nota.toFixed(1)}
           detalhe={
             casa.avaliacoes === 0
-              ? "Ainda sem avaliações"
+              ? "Sem avaliações"
               : `${casa.avaliacoes} avaliaç${casa.avaliacoes === 1 ? "ão" : "ões"}`
           }
         />
@@ -193,7 +190,7 @@ export default async function CasaDetalhePage({ params }: Props) {
           {casa.descricao ? (
             <p className="text-sm leading-relaxed text-muted-foreground">{casa.descricao}</p>
           ) : (
-            <Vazio texto="A descrição ainda não foi preenchida. Ela aparece no diretório público." />
+            <Vazio texto="Adicione uma descrição na edição da casa." />
           )}
           {casa.tags.length > 0 ? (
             <ul className="mt-4 flex flex-wrap gap-2">
@@ -265,7 +262,7 @@ export default async function CasaDetalhePage({ params }: Props) {
         </Secao>
       </div>
 
-      <Secao titulo="Residentes" descricao="Quem mora na casa. O gerenciamento completo entra na próxima etapa.">
+      <Secao titulo="Residentes">
         {casa.residentesLista.length === 0 ? (
           <Vazio texto="Nenhum residente cadastrado ainda." />
         ) : (
@@ -301,9 +298,9 @@ export default async function CasaDetalhePage({ params }: Props) {
       </Secao>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Secao titulo="Equipe" descricao="Gestores e funcionários com vínculo ativo.">
+        <Secao titulo="Equipe">
           {casa.colaboradores.length === 0 ? (
-            <Vazio texto="Ninguém vinculado além de você." />
+            <Vazio texto="Nenhum outro profissional vinculado." />
           ) : (
             <ul className="divide-y divide-border">
               {casa.colaboradores.map((pessoa) => (
@@ -323,9 +320,12 @@ export default async function CasaDetalhePage({ params }: Props) {
           )}
         </Secao>
 
-        <Secao titulo="Planos e mensalidades" descricao="O menor valor ativo vira a mensalidade do diretório.">
+        <Secao
+          titulo="Planos e mensalidades"
+          acao={{ href: `/gerente/planos?casa=${casa.id}`, label: "Gerenciar" }}
+        >
           {casa.planos.length === 0 ? (
-            <Vazio texto="Nenhum plano cadastrado. Sem plano, o diretório mostra 'sob consulta'." />
+            <Vazio texto="Nenhum plano cadastrado." />
           ) : (
             <ul className="divide-y divide-border">
               {casa.planos.map((plano) => (
@@ -352,9 +352,9 @@ export default async function CasaDetalhePage({ params }: Props) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Secao titulo="Fotos" descricao="A primeira é a capa do card no diretório.">
+        <Secao titulo="Fotos">
           {casa.fotos.length === 0 ? (
-            <Vazio texto="Sem fotos ainda: o diretório usa uma imagem ilustrativa." />
+            <Vazio texto="Nenhuma foto adicionada." />
           ) : (
             <ul className="grid grid-cols-3 gap-2">
               {casa.fotos.slice(0, 6).map((foto) => (
@@ -372,7 +372,7 @@ export default async function CasaDetalhePage({ params }: Props) {
           )}
         </Secao>
 
-        <Secao titulo="Solicitações de entrada" descricao="Pedidos de famílias para entrar na casa.">
+        <Secao titulo="Solicitações de entrada">
           {casa.solicitacoesLista.length === 0 ? (
             <Vazio texto="Nenhuma solicitação recebida." />
           ) : (
@@ -396,7 +396,7 @@ export default async function CasaDetalhePage({ params }: Props) {
         </Secao>
       </div>
 
-      <Secao titulo="Avaliações das famílias" descricao="Só quem tem vínculo aprovado avalia — e a nota não pode ser editada pelo gestor.">
+      <Secao titulo="Avaliações">
         {casa.avaliacoesLista.length === 0 ? (
           <Vazio texto="Esta casa ainda não recebeu avaliações." />
         ) : (

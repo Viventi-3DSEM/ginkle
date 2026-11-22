@@ -100,8 +100,7 @@ export default async function PainelPage() {
       <header>
         <h1 className="font-heading text-2xl font-semibold sm:text-3xl">Painel do gestor</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          A rotina das suas casas em números: quem está sob seus cuidados, o que a equipe
-          registrou nos últimos sete dias e o que espera resposta.
+          Visão geral das suas casas, cuidados da semana e solicitações de famílias.
         </p>
       </header>
 
@@ -109,31 +108,31 @@ export default async function PainelPage() {
         <Stat
           rotulo="Casas"
           valor={String(resumo.casas)}
-          detalhe={resumo.casas === 1 ? "1 instituição sob sua gestão" : `${resumo.casas} instituições sob sua gestão`}
+          detalhe={resumo.casas === 1 ? "Instituição ativa" : "Instituições cadastradas"}
           Icone={Building2}
         />
         <Stat
-          rotulo="Residentes ativos"
+          rotulo="Residentes"
           valor={String(resumo.residentes)}
-          detalhe="Considera só quem está com status ativo"
+          detalhe="Moradores ativos"
           Icone={Users}
         />
         <Stat
           rotulo="Equipe"
           valor={String(resumo.equipe)}
-          detalhe="Vínculos ativos nas suas casas"
+          detalhe="Profissionais ativos"
           Icone={HeartPulse}
         />
         <Stat
           rotulo="Registros (7 dias)"
           valor={String(resumo.registros7d)}
-          detalhe="Cuidados, medicamentos, sinais vitais e ocorrências"
+          detalhe="Última semana"
           Icone={ClipboardList}
         />
         <Stat
           rotulo="Solicitações"
           valor={String(resumo.solicitacoes)}
-          detalhe="Famílias aguardando resposta"
+          detalhe="Aguardando resposta"
           Icone={UserPlus}
         />
         <Stat
@@ -141,8 +140,8 @@ export default async function PainelPage() {
           valor={resumo.notaMedia === null ? "—" : resumo.notaMedia.toFixed(1)}
           detalhe={
             resumo.avaliacoes === 0
-              ? "Ainda sem avaliações"
-              : `${resumo.avaliacoes} avaliaç${resumo.avaliacoes === 1 ? "ão" : "ões"} no diretório`
+              ? "Sem avaliações ainda"
+              : `${resumo.avaliacoes} avaliaç${resumo.avaliacoes === 1 ? "ão" : "ões"}`
           }
           Icone={Star}
         />
@@ -170,8 +169,7 @@ export default async function PainelPage() {
         <Bloco titulo="Últimos registros da equipe">
           {atividade.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nada registrado nos últimos sete dias. Os registros aparecem aqui assim que a
-              equipe lançar cuidados, medicamentos ou sinais vitais.
+              Nenhum cuidado registrado nos últimos sete dias.
             </p>
           ) : (
             <ul className="divide-y divide-border">
@@ -187,7 +185,7 @@ export default async function PainelPage() {
                     </p>
                     {registro.atrasado ? (
                       <p className="mt-1 text-xs font-medium text-warning">
-                        Sincronizado com atraso (mais de 10 minutos)
+                        Sincronizado com atraso
                       </p>
                     ) : null}
                   </div>
@@ -200,7 +198,7 @@ export default async function PainelPage() {
         <Bloco titulo="Solicitações pendentes">
           {solicitacoesPendentes.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nenhuma família esperando resposta agora.
+              Nenhuma solicitação pendente.
             </p>
           ) : (
             <ul className="divide-y divide-border">
@@ -209,7 +207,7 @@ export default async function PainelPage() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{solicitacao.casa}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Pedido de entrada em {dataHora(solicitacao.quando)}
+                      Pedido em {dataHora(solicitacao.quando)}
                     </p>
                   </div>
                   <Link
@@ -221,12 +219,6 @@ export default async function PainelPage() {
                 </li>
               ))}
             </ul>
-          )}
-          {solicitacoesPendentes.length === 0 ? null : (
-            <p className="mt-4 border-l-2 border-border pl-3 text-xs leading-relaxed text-muted-foreground">
-              Responder a solicitação cria o vínculo da família com o residente — isso entra
-              junto com o gerenciamento de residentes.
-            </p>
           )}
         </Bloco>
       </div>

@@ -28,7 +28,11 @@ export function dataHora(iso: string): string {
 }
 
 export function reais(valor: number): string {
-  return valor.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const decimais = Number.isInteger(valor) ? 0 : 2;
+  return valor.toLocaleString("pt-BR", {
+    minimumFractionDigits: decimais,
+    maximumFractionDigits: 2,
+  });
 }
 
 export function idade(nascimento: string): number | null {

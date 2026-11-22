@@ -236,15 +236,216 @@ export async function alternarPublicado(form: FormData): Promise<void> {
   const publicado = String(form.get("publicado") ?? "") === "true";
   if (!UUID_RE.test(id) || !supabaseConfigurado()) return;
 
+  await definirVisibilidade(id, publicado);
+}
+
+export async function definirVisibilidade(
+  id: string,
+  publicado: boolean,
+): Promise<{ erro?: string; publicado: boolean }> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE, publicado: !publicado };
+  if (!UUID_RE.test(id)) return { erro: "Casa não encontrada.", publicado: !publicado };
+
   const supabase = await createClient();
-  await supabase
+  const { data, error } = await supabase
     .from("ilpi")
     .update({ publicado })
     .eq("id_ilpi", id)
-    .select("id_ilpi");
+    .select("id_ilpi, slug");
+
+  if (error) return { erro: mensagemErro(error), publicado: !publicado };
+  const linha = (data ?? []) as unknown as { id_ilpi: string; slug: string }[];
+  if (linha.length === 0) {
+    return { erro: "Você não tem permissão para alterar esta casa.", publicado: !publicado };
+  }
 
   revalidatePath("/gerente");
   revalidatePath("/gerente/casas");
   revalidatePath(`/gerente/casas/${id}`);
   revalidatePath("/casas");
+  if (linha[0]?.slug) revalidatePath(`/casas/${linha[0].slug}`);
+
+  return { publicado };
+}
+
+function lerValorPlano(bruto: string): number | null {
+  const limpo = bruto.replace(/R\$/gi, "").replace(/\s+/g, "");
+  if (!limpo) return null;
+
+  let normalizado = limpo;
+  if (limpo.includes(".") && limpo.includes(",")) {
+    normalizado = limpo.replace(/\./g, "").replace(",", ".");
+  } else if (limpo.includes(",")) {
+    normalizado = limpo.replace(",", ".");
+  }
+
+  const valor = Number(normalizado);
+  if (!Number.isFinite(valor) || valor < 0 || valor > 999999.99) return null;
+  return Math.round(valor * 100) / 100;
+}
+
+function lerDadosPlano(form: FormData): {
+  dados?: { nome: string; valor: number; descricao: string | null };
+  erro?: string;
+} {
+  const nome = texto(form, "nome");
+  const valorBruto = texto(form, "valor");
+  const descricao = texto(form, "descricao");
+
+  if (nome.length < 2) return { erro: "Informe o nome do plano (pelo menos 2 caracteres)." };
+  if (nome.length > 80) return { erro: "O nome do plano aceita até 80 caracteres." };
+
+  const valor = lerValorPlano(valorBruto);
+  if (valor === null) {
+    return { erro: "Informe uma mensalidade válida (ex.: 3.200,00)." };
+  }
+
+  if (descricao.length > 300) {
+    return { erro: "A descrição do plano aceita até 300 caracteres." };
+  }
+
+  return { dados: { nome, valor, descricao: descricao || null } };
+}
+
+function revalidarPlanos(casaId: string, slug?: string | null) {
+  revalidatePath("/gerente");
+  revalidatePath("/gerente/planos");
+  revalidatePath("/gerente/casas");
+  revalidatePath(`/gerente/casas/${casaId}`);
+  revalidatePath("/casas");
+  if (slug) revalidatePath(`/casas/${slug}`);
+}
+
+export async function criarPlano(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const casaId = texto(form, "casaId");
+  if (!UUID_RE.test(casaId)) return { erro: "Selecione uma casa válida." };
+
+  const { dados, erro } = lerDadosPlano(form);
+  if (!dados) return { erro: erro ?? "Revise os dados do plano." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("plano").insert({
+    id_ilpi: casaId,
+    nome: dados.nome,
+    valor: dados.valor,
+    descricao: dados.descricao,
+    ativo: true,
+  });
+
+  if (error) return { erro: mensagemErro(error) };
+
+  const { data: casa } = await supabase
+    .from("ilpi")
+    .select("slug")
+    .eq("id_ilpi", casaId)
+    .maybeSingle();
+
+  revalidarPlanos(casaId, (casa?.slug as string | undefined) ?? null);
+  return { ok: `Plano "${dados.nome}" adicionado.` };
+}
+
+export async function atualizarPlano(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const id = texto(form, "id");
+  const casaId = texto(form, "casaId");
+  if (!UUID_RE.test(id) || !UUID_RE.test(casaId)) return { erro: "Plano não encontrado." };
+
+  const { dados, erro } = lerDadosPlano(form);
+  if (!dados) return { erro: erro ?? "Revise os dados do plano." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("plano")
+    .update({
+      nome: dados.nome,
+      valor: dados.valor,
+      descricao: dados.descricao,
+    })
+    .eq("id_plano", id)
+    .eq("id_ilpi", casaId)
+    .select("id_plano");
+
+  if (error) return { erro: mensagemErro(error) };
+  if (!data || data.length === 0) return { erro: "Plano não encontrado ou sem permissão." };
+
+  const { data: casa } = await supabase
+    .from("ilpi")
+    .select("slug")
+    .eq("id_ilpi", casaId)
+    .maybeSingle();
+
+  revalidarPlanos(casaId, (casa?.slug as string | undefined) ?? null);
+  return { ok: `Plano "${dados.nome}" atualizado.` };
+}
+
+export async function alternarPlanoAtivo(
+  id: string,
+  casaId: string,
+  ativo: boolean,
+): Promise<{ erro?: string; ativo: boolean }> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE, ativo: !ativo };
+  if (!UUID_RE.test(id) || !UUID_RE.test(casaId)) {
+    return { erro: "Plano não encontrado.", ativo: !ativo };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("plano")
+    .update({ ativo })
+    .eq("id_plano", id)
+    .eq("id_ilpi", casaId)
+    .select("id_plano");
+
+  if (error) return { erro: mensagemErro(error), ativo: !ativo };
+  if (!data || data.length === 0) {
+    return { erro: "Você não tem permissão para alterar este plano.", ativo: !ativo };
+  }
+
+  const { data: casa } = await supabase
+    .from("ilpi")
+    .select("slug")
+    .eq("id_ilpi", casaId)
+    .maybeSingle();
+
+  revalidarPlanos(casaId, (casa?.slug as string | undefined) ?? null);
+  return { ativo };
+}
+
+export async function excluirPlano(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const id = texto(form, "id");
+  const casaId = texto(form, "casaId");
+  if (!UUID_RE.test(id) || !UUID_RE.test(casaId)) return { erro: "Plano não encontrado." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("plano")
+    .delete()
+    .eq("id_plano", id)
+    .eq("id_ilpi", casaId)
+    .select("id_plano");
+
+  if (error) {
+    if (error.code === "23503") {
+      return {
+        erro: "Este plano está vinculado a assinaturas e não pode ser excluído. Desative-o para deixar de oferecê-lo.",
+      };
+    }
+    return { erro: mensagemErro(error) };
+  }
+
+  if (!data || data.length === 0) return { erro: "Plano não encontrado ou sem permissão." };
+
+  const { data: casa } = await supabase
+    .from("ilpi")
+    .select("slug")
+    .eq("id_ilpi", casaId)
+    .maybeSingle();
+
+  revalidarPlanos(casaId, (casa?.slug as string | undefined) ?? null);
+  return { ok: "Plano excluído." };
 }

@@ -529,3 +529,80 @@ export async function casaDoGestor(id: string): Promise<CasaCompleta | null> {
     })),
   };
 }
+
+export type PlanoDoGestor = {
+  id: string;
+  casaId: string;
+  casaNome: string;
+  casaSlug: string;
+  nome: string;
+  valor: number;
+  descricao: string | null;
+  ativo: boolean;
+};
+
+export type PlanosDoGestor = {
+  casas: { id: string; nome: string; slug: string; publicado: boolean }[];
+  planos: PlanoDoGestor[];
+};
+
+export async function planosDoGestor(): Promise<PlanosDoGestor> {
+  const supabase = await createClientOpcional();
+  if (!supabase) return { casas: [], planos: [] };
+
+  const ids = await idsDasMinhasCasas(supabase);
+  if (ids.length === 0) return { casas: [], planos: [] };
+
+  const [casasRes, planosRes] = await Promise.all([
+    supabase
+      .from("ilpi")
+      .select("id_ilpi, nome, slug, publicado")
+      .in("id_ilpi", ids)
+      .order("nome", { ascending: true }),
+    supabase
+      .from("plano")
+      .select("id_plano, id_ilpi, nome, valor, descricao, ativo")
+      .in("id_ilpi", ids)
+      .order("valor", { ascending: true })
+      .order("nome", { ascending: true }),
+  ]);
+
+  const casas = ((casasRes.data ?? []) as unknown as {
+    id_ilpi: string;
+    nome: string;
+    slug: string;
+    publicado: boolean;
+  }[]).map((c) => ({
+    id: c.id_ilpi,
+    nome: c.nome,
+    slug: c.slug,
+    publicado: Boolean(c.publicado),
+  }));
+
+  const casaPorId = new Map(casas.map((c) => [c.id, c]));
+
+  const planos: PlanoDoGestor[] = ((planosRes.data ?? []) as unknown as {
+    id_plano: string;
+    id_ilpi: string;
+    nome: string;
+    valor: number | string;
+    descricao: string | null;
+    ativo: boolean;
+  }[])
+    .filter((p) => casaPorId.has(p.id_ilpi))
+    .map((p) => {
+      const casa = casaPorId.get(p.id_ilpi)!;
+      return {
+        id: p.id_plano,
+        casaId: p.id_ilpi,
+        casaNome: casa.nome,
+        casaSlug: casa.slug,
+        nome: p.nome,
+        valor: numero(p.valor),
+        descricao: p.descricao,
+        ativo: Boolean(p.ativo),
+      };
+    });
+
+  return { casas, planos };
+}

@@ -35,7 +35,7 @@ export default async function EditarCasaPage({ params }: Props) {
       idCasa={casa.id}
       valores={valores}
       titulo="Editar casa"
-      subtitulo="As mudanças valem na hora no diretório público."
+      subtitulo="Atualize as informações da instituição."
       rotulo="Salvar alterações"
       voltarPara={`/gerente/casas/${casa.id}`}
     />
