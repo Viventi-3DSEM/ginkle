@@ -14,6 +14,18 @@ where id_usuario in (
   select id_usuario from public.usuario where email like '%@ginkle.me'
 );
 
+-- ---- 1b. assinaturas (FK restrict em usuario e plano; cascateia faturamento)
+delete from public.assinatura
+where id_usuario in (
+  select id_usuario from public.usuario where email like '%@ginkle.me'
+)
+or id_plano in (
+  select p.id_plano
+  from public.plano p
+  join public.ilpi i on i.id_ilpi = p.id_ilpi
+  where i.slug in ('residencial-aurora', 'casa-serenidade', 'recanto-das-palmeiras', 'casa-de-teste')
+);
+
 -- ---- 2. registros assistenciais das casas de demonstração -------------------
 delete from public.registro_assistencial
 where id_residente in (

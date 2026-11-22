@@ -18,8 +18,9 @@ No SQL Editor do Supabase, rodar **um arquivo por vez, nesta ordem**:
 9. `migrations/0009_usuario_equipe.sql` — a equipe de uma casa lê o nome dos colegas
 10. `migrations/0010_corrige_rls.sql` — corrige o isolamento entre casas e a linha do tempo do familiar
 11. `migrations/0011_limpa_rls_grants.sql` — vazamento de casa em rascunho, insert direto de casa e EXECUTE das funções
-12. `seed.sql` — as 8 casas do protótipo
-13. `seed_fotos_planos.sql` — fotos e planos dessas casas
+12. `migrations/0012_painel_gestor.sql` — leitura de solicitantes/assinantes/colegas inativos, RPCs por e-mail, financeiro do gestor e auditoria por casa
+13. `seed.sql` — as 8 casas do protótipo
+14. `seed_fotos_planos.sql` — fotos e planos dessas casas
 
 Todos são idempotentes: pode rodar de novo sem duplicar.
 
@@ -56,8 +57,9 @@ Por isso a tabela não tem senha — ela nunca passa pelo schema público.
 ## Duas camadas de permissão
 
 1. **Grant** (tabela): com "Automatically expose new tables" desmarcado, nada é
-   alcançável pela API sem `grant` explícito. `log_acao` não tem grant nenhum:
-   só o servidor (chave secreta) escreve e lê.
+   alcançável pela API sem `grant` explícito. `log_acao` não tem `insert`,
+   `update` nem `delete` para `authenticated`: é preenchida por trigger no banco
+   (append-only) e legível apenas pelo gestor da casa (`0012`).
 2. **RLS** (linha): toda tabela tem RLS ligada. O familiar vê o residente
    vinculado a ele (`familiar_residente`) e a equipe da casa vê os da casa.
 
@@ -98,6 +100,9 @@ quem consulta e a permissão é verificada.
 - `public.criar_ilpi(...)` — cria a casa **e** o vínculo de gestor do usuário
   logado na mesma transação (a policy de `vinculo_ilpi` sozinha nunca deixaria
   o primeiro gestor entrar).
+- `public.vincular_equipe_por_email(...)` e `public.vincular_familiar_por_email(...)` —
+  adicionam profissional (apenas gestor) ou familiar (equipe) por e-mail sem
+  abrir a tabela `usuario` para busca irrestrita (`0012`).
 
 ## Como isto foi verificado
 
@@ -157,16 +162,15 @@ ficam:
   (`publicado` / `pode_ver_residente`) e devolvem só colunas seguras; trocar por
   `security_invoker` quebraria a feature, não melhoraria a segurança.
 - `authenticated_security_definer_function_executable` nos helpers (`eh_equipe`,
-  `eh_gestor`, `eh_familiar_de`, `eh_familiar_da_casa`, `pode_ver_residente`,
-  `eh_meu_vinculo`, `meu_cargo`, `cargo_na_ilpi`) e em `criar_ilpi` — a expressão
-  de uma policy roda como **quem consulta**, então `authenticated` precisa mesmo
-  de `EXECUTE` nesses helpers; revogar quebraria toda a RLS. São predicados keyed
-  em `auth.uid()`, que devolvem `false`/`null` para quem não tem vínculo
-  (verificado). Fechar isso de vez significa mover os helpers para um schema não
-  exposto (`private.`), o que obriga a reescrever as policies — fica como melhoria
-  opcional, não como bloqueio.
-- `rls_enabled_no_policy` (INFO) em `log_acao` — RLS ligada, sem policy e sem
-  grant: ninguém pela API lê ou escreve; só o servidor com a chave secreta.
+  `eh_gestor`, `eh_familiar_de`, `eh_familiar_da_casa`, `eh_assinante_do_plano`,
+  `pode_ver_residente`, `eh_meu_vinculo`, `meu_cargo`, `cargo_na_ilpi`) e nas
+  RPCs (`criar_ilpi`, `vincular_equipe_por_email`, `vincular_familiar_por_email`)
+  — a expressão de uma policy roda como **quem consulta**, então `authenticated`
+  precisa mesmo de `EXECUTE` nesses helpers; revogar quebraria toda a RLS. São
+  predicados keyed em `auth.uid()`, que devolvem `false`/`null` para quem não
+  tem vínculo (verificado). Fechar isso de vez significa mover os helpers para
+  um schema não exposto (`private.`), o que obriga a reescrever as policies —
+  fica como melhoria opcional, não como bloqueio.
 - `*_security_definer_function_executable` em `rls_auto_enable()` — função criada
   pela própria plataforma do Supabase (não está nas migrations), usada em event
   trigger. Fora do nosso controle.
