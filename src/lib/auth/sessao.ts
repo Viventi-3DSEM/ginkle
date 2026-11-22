@@ -3,7 +3,7 @@ import { createClientOpcional } from "@/lib/supabase/server";
 export type Cargo = "GESTOR" | "FUNCIONARIO" | null;
 
 export const HOME_POR_CARGO: Record<"GESTOR" | "FUNCIONARIO" | "CLIENTE", string> = {
-  GESTOR: "/gerente/home-gerente",
+  GESTOR: "/gerente",
   FUNCIONARIO: "/home-funcionario",
   CLIENTE: "/home-cliente",
 };

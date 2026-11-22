@@ -836,7 +836,7 @@ export default function Home() {
               conquiste a confiança das famílias.
             </p>
             <Link
-              href="/cadastro"
+              href="/cadastrar-instituicao"
               className="mt-8 inline-flex items-center gap-2 rounded-lg bg-[#0f1f10] px-6 py-3 font-sans text-sm font-medium text-[#e4f0e5] transition-opacity hover:opacity-90"
             >
               Fazer parte do Ginkle

@@ -11,6 +11,9 @@ const AREAS_PROTEGIDAS: { prefixo: string; cargo?: "GESTOR" | "FUNCIONARIO" }[] 
   { prefixo: "/gerente", cargo: "GESTOR" },
   { prefixo: "/home-funcionario", cargo: "FUNCIONARIO" },
   { prefixo: "/home-cliente" },
+  // Porta de entrada do gestor: só exige sessão, porque é aqui que a pessoa
+  // deixa de ser familiar e passa a ter vínculo de GESTOR com a primeira casa.
+  { prefixo: "/cadastrar-instituicao" },
 ];
 
 /** Telas de autenticação: logado que cai aqui vai para a própria home. */
@@ -93,7 +96,7 @@ export async function updateSession(request: NextRequest) {
 
   const home =
     cargo === "GESTOR"
-      ? "/gerente/home-gerente"
+      ? "/gerente"
       : cargo === "FUNCIONARIO"
         ? "/home-funcionario"
         : "/home-cliente";

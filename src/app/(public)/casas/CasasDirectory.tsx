@@ -304,7 +304,7 @@ export default function CasasDirectory({ casas }: { casas: IlpiPublica[] }) {
             </p>
           </div>
           <Link
-            href="/cadastro"
+            href="/cadastrar-instituicao"
             className="inline-flex items-center gap-2 rounded-lg bg-[#a3d7a9] px-6 py-3 font-sans text-sm font-medium text-[#0f1f10] transition-opacity hover:opacity-90"
           >
             Cadastrar instituição

@@ -53,7 +53,7 @@ export default async function CasaPage({ params }: Props) {
             Ver todas as casas
           </Link>
           <Link
-            href="/cadastro"
+            href="/cadastrar-instituicao"
             className="inline-flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 font-sans text-sm font-medium transition-colors hover:bg-secondary"
           >
             Cadastrar minha instituição
