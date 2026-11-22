@@ -3,12 +3,24 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Globe, LayoutDashboard, LogOut, Tag, UserCog, Users } from "lucide-react";
+import { useEffect, useId, useRef } from "react";
+import {
+  Building2,
+  Globe,
+  LayoutDashboard,
+  LogOut,
+  MoreHorizontal,
+  Tag,
+  UserCog,
+  Users,
+  Wallet,
+  X,
+} from "lucide-react";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import { sair } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 
-const NAV = [
+const NAV_PRINCIPAL = [
   { href: "/gerente", label: "Painel", curto: "Painel", Icone: LayoutDashboard, exato: true },
   {
     href: "/gerente/casas",
@@ -31,6 +43,9 @@ const NAV = [
     Icone: UserCog,
     exato: false,
   },
+];
+
+const NAV_SECUNDARIO = [
   {
     href: "/gerente/planos",
     label: "Planos",
@@ -38,7 +53,16 @@ const NAV = [
     Icone: Tag,
     exato: false,
   },
+  {
+    href: "/gerente/financeiro",
+    label: "Financeiro",
+    curto: "Financeiro",
+    Icone: Wallet,
+    exato: false,
+  },
 ];
+
+const NAV_TODOS = [...NAV_PRINCIPAL, ...NAV_SECUNDARIO];
 
 type Props = {
   usuario: { nome: string; email: string };
@@ -47,8 +71,56 @@ type Props = {
 
 export default function PainelShell({ usuario, children }: Props) {
   const pathname = usePathname();
-  const ativo = (item: (typeof NAV)[number]) =>
+  const menuRef = useRef<HTMLDialogElement>(null);
+  const fecharBtnRef = useRef<HTMLButtonElement>(null);
+  const menuTituloId = useId();
+
+  const ativo = (item: (typeof NAV_TODOS)[number]) =>
     item.exato ? pathname === item.href : pathname.startsWith(item.href);
+
+  const secundarioAtivo = NAV_SECUNDARIO.some(ativo);
+
+  useEffect(() => {
+    const dialog = menuRef.current;
+    if (!dialog) return;
+
+    dialog.setAttribute("closedby", "any");
+    if ("closedBy" in HTMLDialogElement.prototype) return;
+
+    const fora = (e: PointerEvent) => {
+      const r = dialog.getBoundingClientRect();
+      return (
+        e.clientX < r.left ||
+        e.clientX > r.right ||
+        e.clientY < r.top ||
+        e.clientY > r.bottom
+      );
+    };
+
+    let pressionouFora = false;
+    const onDown = (e: PointerEvent) => {
+      pressionouFora = fora(e);
+    };
+    const onUp = (e: PointerEvent) => {
+      if (pressionouFora && fora(e)) dialog.close();
+      pressionouFora = false;
+    };
+
+    dialog.addEventListener("pointerdown", onDown);
+    dialog.addEventListener("pointerup", onUp);
+    return () => {
+      dialog.removeEventListener("pointerdown", onDown);
+      dialog.removeEventListener("pointerup", onUp);
+    };
+  }, []);
+
+  function abrirMenuMobile() {
+    const dialog = menuRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      fecharBtnRef.current?.focus();
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background md:flex">
@@ -62,7 +134,7 @@ export default function PainelShell({ usuario, children }: Props) {
         </Link>
 
         <nav aria-label="Painel" className="flex flex-col gap-1 px-3">
-          {NAV.map((item) => (
+          {NAV_TODOS.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -151,7 +223,7 @@ export default function PainelShell({ usuario, children }: Props) {
         aria-label="Painel"
         className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
       >
-        {NAV.map((item) => (
+        {NAV_PRINCIPAL.map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -165,7 +237,75 @@ export default function PainelShell({ usuario, children }: Props) {
             <span className="max-w-full truncate">{item.curto}</span>
           </Link>
         ))}
+
+        <button
+          type="button"
+          onClick={abrirMenuMobile}
+          aria-haspopup="dialog"
+          className={cn(
+            "flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[0.68rem] font-medium transition-colors",
+            secundarioAtivo ? "text-brand-strong" : "text-muted-foreground",
+          )}
+        >
+          <MoreHorizontal className="size-5" aria-hidden="true" />
+          <span className="max-w-full truncate">Mais</span>
+        </button>
       </nav>
+
+      <dialog
+        ref={menuRef}
+        aria-labelledby={menuTituloId}
+        onClose={(e) => {
+          e.currentTarget.returnValue = "";
+        }}
+        className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-sm border border-border bg-card p-0 text-foreground shadow-xl"
+      >
+        <div className="p-5">
+          <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
+            <h2 id={menuTituloId} className="font-heading text-base font-semibold">
+              Mais opções
+            </h2>
+            <button
+              ref={fecharBtnRef}
+              type="button"
+              onClick={() => menuRef.current?.close()}
+              aria-label="Fechar menu"
+              className="inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-col gap-1">
+            {NAV_SECUNDARIO.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => menuRef.current?.close()}
+                aria-current={ativo(item) ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-3 rounded-sm px-3 py-3 text-sm font-medium transition-colors",
+                  ativo(item)
+                    ? "bg-secondary text-brand-strong"
+                    : "text-foreground hover:bg-secondary/60",
+                )}
+              >
+                <item.Icone className="size-5 shrink-0" aria-hidden="true" />
+                {item.label}
+              </Link>
+            ))}
+
+            <Link
+              href="/"
+              onClick={() => menuRef.current?.close()}
+              className="flex items-center gap-3 rounded-sm px-3 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+            >
+              <Globe className="size-5 shrink-0" aria-hidden="true" />
+              Ver o site
+            </Link>
+          </div>
+        </div>
+      </dialog>
     </div>
   );
 }

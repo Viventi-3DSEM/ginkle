@@ -917,3 +917,182 @@ export async function removerMembroEquipe(_estado: Estado, form: FormData): Prom
   revalidarEquipe(casaId);
   return { ok: "Profissional removido da equipe." };
 }
+
+const STATUS_ASSINATURA_VALIDOS = new Set(["ATIVA", "SUSPENSA", "CANCELADA"]);
+const STATUS_FATURA_VALIDOS = new Set(["PENDENTE", "PAGO", "ATRASADO", "CANCELADO"]);
+
+function hojeBrasiliaIso(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date());
+}
+
+function revalidarFinanceiro() {
+  revalidatePath("/gerente");
+  revalidatePath("/gerente/financeiro");
+  revalidatePath("/cliente");
+}
+
+export async function criarAssinatura(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const usuarioId = texto(form, "usuarioId");
+  const planoId = texto(form, "planoId");
+  const dataInicio = texto(form, "dataInicio") || hojeBrasiliaIso();
+  const gerarFatura = form.get("gerarPrimeiraFatura") === "on";
+  const dataVencimento = texto(form, "dataVencimento");
+
+  if (!UUID_RE.test(usuarioId)) return { erro: "Selecione o familiar assinante." };
+  if (!UUID_RE.test(planoId)) return { erro: "Selecione um plano válido." };
+  if (!dataValida(dataInicio)) return { erro: "Informe uma data de início válida." };
+  if (gerarFatura && !dataValida(dataVencimento)) {
+    return { erro: "Informe a data de vencimento da primeira fatura." };
+  }
+
+  const supabase = await createClient();
+  const { data: plano } = await supabase
+    .from("plano")
+    .select("id_plano, nome, valor")
+    .eq("id_plano", planoId)
+    .maybeSingle();
+
+  if (!plano) return { erro: "Plano não encontrado." };
+
+  const { data: criada, error } = await supabase
+    .from("assinatura")
+    .insert({
+      id_usuario: usuarioId,
+      id_plano: planoId,
+      status: "ATIVA",
+      data_inicio: dataInicio,
+    })
+    .select("id_assinatura")
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "23505") {
+      return {
+        erro: "Esta pessoa já possui uma assinatura ativa. Suspenda ou cancele a atual antes de criar outra.",
+      };
+    }
+    if (error.code === "42501") {
+      return {
+        erro: "O assinante precisa estar vinculado a um residente ou ter uma solicitação nesta casa.",
+      };
+    }
+    return { erro: mensagemErro(error) };
+  }
+
+  if (gerarFatura && criada) {
+    const valorPlano = Number(plano.valor ?? 0);
+    const { error: erroFat } = await supabase.from("faturamento").insert({
+      id_assinatura: (criada as { id_assinatura: string }).id_assinatura,
+      valor: Number.isFinite(valorPlano) ? valorPlano : 0,
+      data_vencimento: dataVencimento,
+      status_pagamento: "PENDENTE",
+    });
+
+    revalidarFinanceiro();
+    if (erroFat) {
+      return {
+        ok: "Assinatura criada, mas não foi possível gerar a primeira fatura agora. Lance manualmente abaixo.",
+      };
+    }
+    return { ok: "Assinatura criada e primeira fatura lançada." };
+  }
+
+  revalidarFinanceiro();
+  return { ok: "Assinatura criada." };
+}
+
+export async function atualizarStatusAssinatura(
+  idAssinatura: string,
+  status: string,
+): Promise<{ erro?: string; ok?: string }> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+  const statusNorm = status.toUpperCase();
+  if (!UUID_RE.test(idAssinatura)) return { erro: "Assinatura não encontrada." };
+  if (!STATUS_ASSINATURA_VALIDOS.has(statusNorm)) return { erro: "Situação inválida." };
+
+  const supabase = await createClient();
+  const payload =
+    statusNorm === "CANCELADA"
+      ? { status: statusNorm, data_fim: hojeBrasiliaIso() }
+      : statusNorm === "ATIVA"
+        ? { status: statusNorm, data_fim: null }
+        : { status: statusNorm };
+
+  const { data, error } = await supabase
+    .from("assinatura")
+    .update(payload)
+    .eq("id_assinatura", idAssinatura)
+    .select("id_assinatura");
+
+  if (error) {
+    if (error.code === "23505") {
+      return { erro: "Este assinante já possui outra assinatura ativa." };
+    }
+    return { erro: mensagemErro(error) };
+  }
+  if (!data || data.length === 0) return { erro: "Sem permissão para alterar esta assinatura." };
+
+  revalidarFinanceiro();
+  return { ok: "Situação da assinatura atualizada." };
+}
+
+export async function criarFatura(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const assinaturaId = texto(form, "assinaturaId");
+  const valor = lerValorPlano(texto(form, "valor"));
+  const vencimento = texto(form, "dataVencimento");
+  const statusInicial = texto(form, "status").toUpperCase() || "PENDENTE";
+
+  if (!UUID_RE.test(assinaturaId)) return { erro: "Assinatura não encontrada." };
+  if (valor === null) return { erro: "Informe um valor válido (ex.: 3.200,00)." };
+  if (!dataValida(vencimento)) return { erro: "Informe uma data de vencimento válida." };
+  if (!STATUS_FATURA_VALIDOS.has(statusInicial)) return { erro: "Situação inválida." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("faturamento").insert({
+    id_assinatura: assinaturaId,
+    valor,
+    data_vencimento: vencimento,
+    status_pagamento: statusInicial,
+    data_pagamento: statusInicial === "PAGO" ? hojeBrasiliaIso() : null,
+  });
+
+  if (error) return { erro: mensagemErro(error) };
+
+  revalidarFinanceiro();
+  return { ok: "Fatura lançada." };
+}
+
+export async function atualizarStatusFatura(
+  idFatura: string,
+  statusPagamento: string,
+): Promise<{ erro?: string; ok?: string }> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+  const statusNorm = statusPagamento.toUpperCase();
+  if (!UUID_RE.test(idFatura)) return { erro: "Fatura não encontrada." };
+  if (!STATUS_FATURA_VALIDOS.has(statusNorm)) return { erro: "Situação inválida." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("faturamento")
+    .update({
+      status_pagamento: statusNorm,
+      data_pagamento: statusNorm === "PAGO" ? hojeBrasiliaIso() : null,
+    })
+    .eq("id_faturamento", idFatura)
+    .select("id_faturamento");
+
+  if (error) return { erro: mensagemErro(error) };
+  if (!data || data.length === 0) return { erro: "Sem permissão para alterar esta fatura." };
+
+  revalidarFinanceiro();
+  return { ok: "Fatura atualizada." };
+}

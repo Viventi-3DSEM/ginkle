@@ -863,3 +863,282 @@ export async function equipeDoGestor(): Promise<EquipeDoGestor> {
 
   return { casas, membros };
 }
+
+export type FaturaDoGestor = {
+  id: string;
+  assinaturaId: string;
+  valor: number;
+  vencimento: string;
+  pagamento: string | null;
+  status: string;
+};
+
+export type AssinaturaDoGestor = {
+  id: string;
+  casaId: string;
+  casaNome: string;
+  planoId: string;
+  planoNome: string;
+  planoValor: number;
+  usuarioId: string;
+  assinanteNome: string;
+  assinanteEmail: string;
+  assinanteTelefone: string | null;
+  status: string;
+  inicio: string;
+  fim: string | null;
+  faturas: FaturaDoGestor[];
+};
+
+export type CandidatoAssinante = {
+  usuarioId: string;
+  nome: string;
+  email: string;
+  casaId: string;
+  origem: "FAMILIAR" | "SOLICITANTE";
+};
+
+export type PlanoOpcaoFinanceiro = {
+  id: string;
+  casaId: string;
+  nome: string;
+  valor: number;
+  ativo: boolean;
+};
+
+export type FinanceiroDoGestor = {
+  casas: { id: string; nome: string; slug: string }[];
+  planos: PlanoOpcaoFinanceiro[];
+  candidatos: CandidatoAssinante[];
+  assinaturas: AssinaturaDoGestor[];
+  resumo: {
+    assinaturasAtivas: number;
+    receitaMensal: number;
+    totalPago: number;
+    totalEmAberto: number;
+    faturasAtrasadas: number;
+  };
+};
+
+export async function financeiroDoGestor(): Promise<FinanceiroDoGestor> {
+  const vazio: FinanceiroDoGestor = {
+    casas: [],
+    planos: [],
+    candidatos: [],
+    assinaturas: [],
+    resumo: {
+      assinaturasAtivas: 0,
+      receitaMensal: 0,
+      totalPago: 0,
+      totalEmAberto: 0,
+      faturasAtrasadas: 0,
+    },
+  };
+
+  const supabase = await createClientOpcional();
+  if (!supabase) return vazio;
+
+  const ids = await idsDasMinhasCasas(supabase);
+  if (ids.length === 0) return vazio;
+
+  const [casasRes, planosRes, residentesRes, adesoesRes] = await Promise.all([
+    supabase
+      .from("ilpi")
+      .select("id_ilpi, nome, slug")
+      .in("id_ilpi", ids)
+      .order("nome", { ascending: true }),
+    supabase
+      .from("plano")
+      .select("id_plano, id_ilpi, nome, valor, ativo")
+      .in("id_ilpi", ids)
+      .order("ativo", { ascending: false })
+      .order("valor", { ascending: true }),
+    supabase.from("residente").select("id_residente, id_ilpi").in("id_ilpi", ids),
+    supabase
+      .from("adesao_ilpi")
+      .select("id_ilpi, id_usuario, usuario(nome, email)")
+      .in("id_ilpi", ids),
+  ]);
+
+  const casas = ((casasRes.data ?? []) as unknown as {
+    id_ilpi: string;
+    nome: string;
+    slug: string;
+  }[]).map((c) => ({ id: c.id_ilpi, nome: c.nome, slug: c.slug }));
+
+  const casaPorId = new Map(casas.map((c) => [c.id, c]));
+
+  const planos: PlanoOpcaoFinanceiro[] = ((planosRes.data ?? []) as unknown as {
+    id_plano: string;
+    id_ilpi: string;
+    nome: string;
+    valor: number | string;
+    ativo: boolean;
+  }[])
+    .filter((p) => casaPorId.has(p.id_ilpi))
+    .map((p) => ({
+      id: p.id_plano,
+      casaId: p.id_ilpi,
+      nome: p.nome,
+      valor: numero(p.valor),
+      ativo: Boolean(p.ativo),
+    }));
+
+  const planoPorId = new Map(planos.map((p) => [p.id, p]));
+  const idsPlanos = planos.map((p) => p.id);
+
+  const linhasRes = (residentesRes.data ?? []) as unknown as {
+    id_residente: string;
+    id_ilpi: string;
+  }[];
+  const casaPorResidente = new Map(linhasRes.map((r) => [r.id_residente, r.id_ilpi]));
+  const idsResidentes = linhasRes.map((r) => r.id_residente);
+
+  const [assinaturasRes, familiaresRes] = await Promise.all([
+    idsPlanos.length > 0
+      ? supabase
+          .from("assinatura")
+          .select(
+            "id_assinatura, id_usuario, id_plano, status, data_inicio, data_fim, usuario(nome, email, telefone)",
+          )
+          .in("id_plano", idsPlanos)
+          .order("data_inicio", { ascending: false })
+      : Promise.resolve({ data: null }),
+    idsResidentes.length > 0
+      ? supabase
+          .from("familiar_residente")
+          .select("id_residente, id_usuario, usuario(nome, email)")
+          .in("id_residente", idsResidentes)
+      : Promise.resolve({ data: null }),
+  ]);
+
+  // Deduplica por (casaId, usuarioId) dando prioridade a FAMILIAR sobre SOLICITANTE.
+  const candidatosMap = new Map<string, CandidatoAssinante>();
+
+  for (const f of (familiaresRes.data ?? []) as unknown as {
+    id_residente: string;
+    id_usuario: string;
+    usuario: { nome: string; email: string } | null;
+  }[]) {
+    const casaId = casaPorResidente.get(f.id_residente);
+    if (!casaId || !f.usuario) continue;
+    candidatosMap.set(`${casaId}:${f.id_usuario}`, {
+      usuarioId: f.id_usuario,
+      nome: f.usuario.nome,
+      email: f.usuario.email,
+      casaId,
+      origem: "FAMILIAR",
+    });
+  }
+
+  for (const a of (adesoesRes.data ?? []) as unknown as {
+    id_ilpi: string;
+    id_usuario: string;
+    usuario: { nome: string; email: string } | null;
+  }[]) {
+    if (!casaPorId.has(a.id_ilpi) || !a.usuario) continue;
+    const chave = `${a.id_ilpi}:${a.id_usuario}`;
+    if (!candidatosMap.has(chave)) {
+      candidatosMap.set(chave, {
+        usuarioId: a.id_usuario,
+        nome: a.usuario.nome,
+        email: a.usuario.email,
+        casaId: a.id_ilpi,
+        origem: "SOLICITANTE",
+      });
+    }
+  }
+
+  const candidatos = [...candidatosMap.values()].sort((a, b) => a.nome.localeCompare(b.nome));
+
+  const linhasAssinaturas = (assinaturasRes.data ?? []) as unknown as {
+    id_assinatura: string;
+    id_usuario: string;
+    id_plano: string;
+    status: string;
+    data_inicio: string;
+    data_fim: string | null;
+    usuario: { nome: string; email: string; telefone: string | null } | null;
+  }[];
+
+  const idsAssinaturas = linhasAssinaturas.map((a) => a.id_assinatura);
+  const faturasPorAssinatura = new Map<string, FaturaDoGestor[]>();
+
+  let totalPago = 0;
+  let totalEmAberto = 0;
+  let faturasAtrasadas = 0;
+
+  if (idsAssinaturas.length > 0) {
+    const { data: fatData } = await supabase
+      .from("faturamento")
+      .select("id_faturamento, id_assinatura, valor, data_vencimento, data_pagamento, status_pagamento")
+      .in("id_assinatura", idsAssinaturas)
+      .order("data_vencimento", { ascending: false });
+
+    for (const fat of (fatData ?? []) as unknown as {
+      id_faturamento: string;
+      id_assinatura: string;
+      valor: number | string;
+      data_vencimento: string;
+      data_pagamento: string | null;
+      status_pagamento: string;
+    }[]) {
+      const valor = numero(fat.valor);
+      if (fat.status_pagamento === "PAGO") totalPago += valor;
+      if (fat.status_pagamento === "PENDENTE" || fat.status_pagamento === "ATRASADO") {
+        totalEmAberto += valor;
+      }
+      if (fat.status_pagamento === "ATRASADO") faturasAtrasadas += 1;
+
+      const lista = faturasPorAssinatura.get(fat.id_assinatura) ?? [];
+      lista.push({
+        id: fat.id_faturamento,
+        assinaturaId: fat.id_assinatura,
+        valor,
+        vencimento: fat.data_vencimento,
+        pagamento: fat.data_pagamento,
+        status: fat.status_pagamento,
+      });
+      faturasPorAssinatura.set(fat.id_assinatura, lista);
+    }
+  }
+
+  const assinaturas: AssinaturaDoGestor[] = linhasAssinaturas
+    .filter((a) => planoPorId.has(a.id_plano))
+    .map((a) => {
+      const plano = planoPorId.get(a.id_plano)!;
+      const casa = casaPorId.get(plano.casaId)!;
+      return {
+        id: a.id_assinatura,
+        casaId: casa.id,
+        casaNome: casa.nome,
+        planoId: plano.id,
+        planoNome: plano.nome,
+        planoValor: plano.valor,
+        usuarioId: a.id_usuario,
+        assinanteNome: a.usuario?.nome ?? "Assinante",
+        assinanteEmail: a.usuario?.email ?? "",
+        assinanteTelefone: a.usuario?.telefone ?? null,
+        status: a.status,
+        inicio: a.data_inicio,
+        fim: a.data_fim,
+        faturas: faturasPorAssinatura.get(a.id_assinatura) ?? [],
+      };
+    });
+
+  const ativas = assinaturas.filter((a) => a.status === "ATIVA");
+
+  return {
+    casas,
+    planos,
+    candidatos,
+    assinaturas,
+    resumo: {
+      assinaturasAtivas: ativas.length,
+      receitaMensal: ativas.reduce((soma, a) => soma + a.planoValor, 0),
+      totalPago,
+      totalEmAberto,
+      faturasAtrasadas,
+    },
+  };
+}
