@@ -14,6 +14,35 @@ where id_usuario in (
   select id_usuario from public.usuario where email like '%@ginkle.me'
 );
 
+-- ---- 1a. chat e escala de turnos -------------------------------------------
+delete from public.mensagem
+where id_usuario in (
+  select id_usuario from public.usuario where email like '%@ginkle.me'
+)
+or id_conversa in (
+  select c.id_conversa
+  from public.conversa c
+  join public.ilpi i on i.id_ilpi = c.id_ilpi
+  where i.slug in ('residencial-aurora', 'casa-serenidade', 'recanto-das-palmeiras', 'casa-de-teste')
+);
+
+delete from public.conversa
+where id_usuario in (
+  select id_usuario from public.usuario where email like '%@ginkle.me'
+)
+or id_ilpi in (
+  select id_ilpi from public.ilpi
+  where slug in ('residencial-aurora', 'casa-serenidade', 'recanto-das-palmeiras', 'casa-de-teste')
+);
+
+delete from public.escala_turno
+where id_vinculo in (
+  select v.id_vinculo
+  from public.vinculo_ilpi v
+  join public.ilpi i on i.id_ilpi = v.id_ilpi
+  where i.slug in ('residencial-aurora', 'casa-serenidade', 'recanto-das-palmeiras', 'casa-de-teste')
+);
+
 -- ---- 1b. assinaturas (FK restrict em usuario e plano; cascateia faturamento)
 delete from public.assinatura
 where id_usuario in (

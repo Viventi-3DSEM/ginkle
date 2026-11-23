@@ -143,15 +143,15 @@ function exigir(erro, contexto) {
 // ------------------------------------------------------------------- dados --
 
 const CONTAS = {
-  gestor: { email: "gestor.demo@ginkle.me", nome: "Helena Prado" },
+  gestor: { email: "gestor.demo@ginkle.me", nome: "Helena Prado", telefone: "13991002001" },
   equipe: [
-    { email: "ana.paula@ginkle.me", nome: "Ana Paula Ferraz" },
-    { email: "carlos.mendes@ginkle.me", nome: "Carlos Mendes" },
-    { email: "beatriz.nogueira@ginkle.me", nome: "Beatriz Nogueira" },
+    { email: "ana.paula@ginkle.me", nome: "Ana Paula Ferraz", telefone: "13991002011" },
+    { email: "carlos.mendes@ginkle.me", nome: "Carlos Mendes", telefone: "13991002012" },
+    { email: "beatriz.nogueira@ginkle.me", nome: "Beatriz Nogueira", telefone: "13991002013" },
   ],
   familiares: [
-    { email: "maria.souza@ginkle.me", nome: "Maria Souza Lima" },
-    { email: "joao.pereira@ginkle.me", nome: "João Pereira" },
+    { email: "maria.souza@ginkle.me", nome: "Maria Souza Lima", telefone: "13991002021" },
+    { email: "joao.pereira@ginkle.me", nome: "João Pereira", telefone: "13991002022" },
   ],
 };
 
@@ -181,10 +181,38 @@ const CASAS = [
       { nome: "Suíte individual", valor: 4300, descricao: "Suíte com banheiro próprio e janela para o jardim." },
     ],
     residentes: [
-      { nome: "Alzira Nunes Barbosa", nascimento: "1938-04-12", sexo: "F", ingresso: "2021-03-02", status: "ATIVO" },
-      { nome: "Sebastião Ribeiro", nascimento: "1942-11-30", sexo: "M", ingresso: "2022-08-19", status: "ATIVO" },
-      { nome: "Nair Tavares Duarte", nascimento: "1945-06-05", sexo: "F", ingresso: "2023-01-14", status: "ATIVO" },
-      { nome: "José Bonifácio Alves", nascimento: "1936-02-27", sexo: "M", ingresso: "2019-10-08", status: "ALTA" },
+      {
+        nome: "Alzira Nunes Barbosa",
+        nascimento: "1938-04-12",
+        sexo: "F",
+        ingresso: "2021-03-02",
+        status: "ATIVO",
+        obs: "Hipertensa, uso contínuo de losartana 50 mg às 8h. Alergia relatada a dipirona. Dieta branda sem restrição de açúcar.",
+      },
+      {
+        nome: "Sebastião Ribeiro",
+        nascimento: "1942-11-30",
+        sexo: "M",
+        ingresso: "2022-08-19",
+        status: "ATIVO",
+        obs: "Diabetes tipo 2 controlada com dieta e metformina. Aferir glicemia capilar em jejum antes do café.",
+      },
+      {
+        nome: "Nair Tavares Duarte",
+        nascimento: "1945-06-05",
+        sexo: "F",
+        ingresso: "2023-01-14",
+        status: "ATIVO",
+        obs: "Uso de andador para deslocamentos longos. Faz fisioterapia motora às segundas, quartas e sextas.",
+      },
+      {
+        nome: "José Bonifácio Alves",
+        nascimento: "1936-02-27",
+        sexo: "M",
+        ingresso: "2019-10-08",
+        status: "ALTA",
+        obs: "Alta programada para residência familiar em excelente estado geral.",
+      },
     ],
   },
   {
@@ -206,11 +234,35 @@ const CASAS = [
       { url: "/images/velhos2.jpg", legenda: "Varanda" },
       { url: "/images/casa.jpg", legenda: "Área externa" },
     ],
-    planos: [{ nome: "Padrão", valor: 2900, descricao: "Quarto compartilhado com acompanhamento integral." }],
+    planos: [
+      { nome: "Padrão", valor: 2900, descricao: "Quarto compartilhado com acompanhamento integral." },
+      { nome: "Quarto individual", valor: 3950, descricao: "Suíte individual com varanda voltada para a horta." },
+    ],
     residentes: [
-      { nome: "Dercília Antunes", nascimento: "1940-09-03", sexo: "F", ingresso: "2020-05-22", status: "ATIVO" },
-      { nome: "Waldemar Coelho", nascimento: "1934-12-17", sexo: "M", ingresso: "2018-07-30", status: "ATIVO" },
-      { nome: "Íris Camargo Belmonte", nascimento: "1948-01-25", sexo: "F", ingresso: "2024-02-05", status: "ATIVO" },
+      {
+        nome: "Dercília Antunes",
+        nascimento: "1940-09-03",
+        sexo: "F",
+        ingresso: "2020-05-22",
+        status: "ATIVO",
+        obs: "Artrose leve em joelhos. Participa da oficina de memória e caminhada leve pela manhã.",
+      },
+      {
+        nome: "Waldemar Coelho",
+        nascimento: "1934-12-17",
+        sexo: "M",
+        ingresso: "2018-07-30",
+        status: "ATIVO",
+        obs: "Usa aparelho auditivo no ouvido direito. Boa aceitação alimentar, atenção à hidratação à tarde.",
+      },
+      {
+        nome: "Íris Camargo Belmonte",
+        nascimento: "1948-01-25",
+        sexo: "F",
+        ingresso: "2024-02-05",
+        status: "ATIVO",
+        obs: "Hipotireoidismo (levotiroxina em jejum às 7h). Sem alergias conhecidas.",
+      },
     ],
   },
   {
@@ -257,13 +309,29 @@ async function main() {
   log("entrando com as contas de demonstração");
   const gestor = cliente();
   const estado = await criarOuEntrar(gestor, CONTAS.gestor);
+  {
+    const { data: u } = await gestor.auth.getUser();
+    if (u.user) {
+      await gestor
+        .from("usuario")
+        .update({ nome: CONTAS.gestor.nome, telefone: CONTAS.gestor.telefone })
+        .eq("id_usuario", u.user.id);
+    }
+  }
   log(estado === "criado" ? "conta do gestor criada" : "conta do gestor já existia");
 
   const equipe = [];
   for (const pessoa of CONTAS.equipe) {
     const c = cliente();
     await criarOuEntrar(c, pessoa);
-    equipe.push({ ...pessoa, cliente: c });
+    const { data: u } = await c.auth.getUser();
+    if (u.user) {
+      await c
+        .from("usuario")
+        .update({ nome: pessoa.nome, telefone: pessoa.telefone })
+        .eq("id_usuario", u.user.id);
+    }
+    equipe.push({ ...pessoa, id: u.user.id, cliente: c });
   }
   log(`${equipe.length} contas de funcionário prontas`);
 
@@ -271,11 +339,20 @@ async function main() {
   for (const pessoa of CONTAS.familiares) {
     const c = cliente();
     await criarOuEntrar(c, pessoa);
-    familiares.push({ ...pessoa, cliente: c });
+    const { data: u } = await c.auth.getUser();
+    if (u.user) {
+      await c
+        .from("usuario")
+        .update({ nome: pessoa.nome, telefone: pessoa.telefone })
+        .eq("id_usuario", u.user.id);
+    }
+    familiares.push({ ...pessoa, id: u.user.id, cliente: c });
   }
   log(`${familiares.length} contas de familiar prontas`);
 
   const idsCasas = [];
+  const planosPorCasa = new Map();
+  const vinculosEquipePorCasa = new Map();
 
   for (const [indice, casa] of CASAS.entries()) {
     // ---- casa: a RPC cria a casa e o vínculo de gestor numa transação
@@ -342,11 +419,14 @@ async function main() {
     }
 
     // ---- planos
-    const { count: planos } = await gestor
+    const { data: planosExistentes } = await gestor
       .from("plano")
-      .select("id_plano", { count: "exact", head: true })
-      .eq("id_ilpi", idCasa);
-    if (!planos) {
+      .select("id_plano, nome, valor")
+      .eq("id_ilpi", idCasa)
+      .order("valor", { ascending: true });
+
+    let planosLista = planosExistentes ?? [];
+    if (planosLista.length === 0) {
       exigir(
         (
           await gestor
@@ -355,7 +435,14 @@ async function main() {
         ).error,
         `planos ${casa.slug}`,
       );
+      const { data: relidos } = await gestor
+        .from("plano")
+        .select("id_plano, nome, valor")
+        .eq("id_ilpi", idCasa)
+        .order("valor", { ascending: true });
+      planosLista = relidos ?? [];
     }
+    planosPorCasa.set(idCasa, planosLista);
 
     // ---- residentes (cpf gerado com dígito verificador válido)
     const { data: residentesExistentes } = await gestor
@@ -371,7 +458,8 @@ async function main() {
         data_nascimento: residente.nascimento,
         sexo: residente.sexo,
         observacoes_medicas:
-          i === 0 ? "Hipertensa, uso contínuo de losartana. Sem restrição alimentar." : null,
+          residente.obs ??
+          (i === 0 ? "Hipertensa, uso contínuo de losartana. Sem restrição alimentar." : null),
         data_ingresso: residente.ingresso,
         status: residente.status,
       }));
@@ -425,6 +513,29 @@ async function main() {
         idVinculo = data.id_vinculo;
       }
       funcionario.idVinculo = idVinculo;
+      vinculosEquipePorCasa.set(`${idCasa}:${funcionario.email}`, idVinculo);
+
+      // Na Residencial Aurora também vinculamos o Carlos como colega de turno da Ana Paula.
+      if (indice === 0 && equipe[1]) {
+        const colega = equipe[1];
+        const { data: vCol } = await gestor
+          .from("vinculo_ilpi")
+          .select("id_vinculo")
+          .eq("id_ilpi", idCasa)
+          .eq("id_usuario", colega.id)
+          .maybeSingle();
+        let idVincColega = vCol?.id_vinculo;
+        if (!idVincColega) {
+          const { data: dCol, error: eCol } = await gestor
+            .from("vinculo_ilpi")
+            .insert({ id_usuario: colega.id, id_ilpi: idCasa, cargo: "FUNCIONARIO" })
+            .select("id_vinculo")
+            .single();
+          exigir(eCol, `vínculo colega ${colega.email}`);
+          idVincColega = dCol.id_vinculo;
+        }
+        vinculosEquipePorCasa.set(`${idCasa}:${colega.email}`, idVincColega);
+      }
 
       // ---- registros dos últimos sete dias (a checagem é por casa, não global)
       const comRegistro = residentes.length > 0
@@ -559,6 +670,269 @@ async function main() {
         .update({ status: "APROVADA", data_resposta: new Date().toISOString() })
         .eq("id_adesao", criada.id_adesao);
       log(`casa "${CASAS[0].nome}": solicitação já respondida (aprovada)`);
+    }
+  }
+
+  // ---- financeiro: assinaturas ativas e faturas para os dois familiares -----
+  const dataIsoRelativa = (diasOffset) => {
+    const d = new Date(Date.now() + diasOffset * 86_400_000);
+    return d.toISOString().slice(0, 10);
+  };
+
+  for (let i = 0; i < 2; i += 1) {
+    const fam = familiares[i];
+    const idCasa = idsCasas[i];
+    const planosCasa = planosPorCasa.get(idCasa) ?? [];
+    // Na Aurora, Maria Souza assina a Suíte individual; na Serenidade, João assina o Padrão.
+    const planoAlvo = i === 0 ? (planosCasa[1] ?? planosCasa[0]) : planosCasa[0];
+    if (!fam || !idCasa || !planoAlvo) continue;
+
+    const { data: assExist } = await gestor
+      .from("assinatura")
+      .select("id_assinatura")
+      .eq("id_usuario", fam.id)
+      .eq("status", "ATIVA")
+      .maybeSingle();
+
+    let idAssinatura = assExist?.id_assinatura;
+    if (!idAssinatura) {
+      const { data: novaAss, error: eAss } = await gestor
+        .from("assinatura")
+        .insert({
+          id_usuario: fam.id,
+          id_plano: planoAlvo.id_plano,
+          status: "ATIVA",
+          data_inicio: dataIsoRelativa(-90),
+        })
+        .select("id_assinatura")
+        .single();
+      exigir(eAss, `assinatura ${fam.email}`);
+      idAssinatura = novaAss.id_assinatura;
+      log(`financeiro: assinatura ativa de ${fam.nome} (${planoAlvo.nome})`);
+    }
+
+    const { count: faturas } = await gestor
+      .from("faturamento")
+      .select("id_faturamento", { count: "exact", head: true })
+      .eq("id_assinatura", idAssinatura);
+
+    if (!faturas) {
+      const valor = Number(planoAlvo.valor);
+      const loteFaturas =
+        i === 0
+          ? [
+              {
+                id_assinatura: idAssinatura,
+                valor,
+                data_vencimento: dataIsoRelativa(-60),
+                data_pagamento: dataIsoRelativa(-61),
+                status_pagamento: "PAGO",
+              },
+              {
+                id_assinatura: idAssinatura,
+                valor,
+                data_vencimento: dataIsoRelativa(-30),
+                data_pagamento: dataIsoRelativa(-30),
+                status_pagamento: "PAGO",
+              },
+              {
+                id_assinatura: idAssinatura,
+                valor,
+                data_vencimento: dataIsoRelativa(5),
+                data_pagamento: null,
+                status_pagamento: "PENDENTE",
+              },
+            ]
+          : [
+              {
+                id_assinatura: idAssinatura,
+                valor,
+                data_vencimento: dataIsoRelativa(-35),
+                data_pagamento: dataIsoRelativa(-35),
+                status_pagamento: "PAGO",
+              },
+              {
+                id_assinatura: idAssinatura,
+                valor,
+                data_vencimento: dataIsoRelativa(-5),
+                data_pagamento: null,
+                status_pagamento: "ATRASADO",
+              },
+              {
+                id_assinatura: idAssinatura,
+                valor,
+                data_vencimento: dataIsoRelativa(25),
+                data_pagamento: null,
+                status_pagamento: "PENDENTE",
+              },
+            ];
+
+      exigir(
+        (await gestor.from("faturamento").insert(loteFaturas)).error,
+        `faturamento ${fam.email}`,
+      );
+      log(`financeiro: ${loteFaturas.length} faturas lançadas para ${fam.nome}`);
+    }
+  }
+
+  // ---- chat: conversas reais entre familiares e equipe ----------------------
+  const CONVERSAS_DEMO = [
+    {
+      casaIdx: 0,
+      famIdx: 0,
+      funcIdx: 0,
+      mensagens: [
+        { de: "fam", texto: "Oi Ana Paula! Tudo bem? Minha mãe almoçou bem hoje?" },
+        {
+          de: "func",
+          texto:
+            "Oi Maria! Tudo ótimo sim. Dona Alzira almoçou muito bem, tomou a medicação das 8h normalmente e fez a fisioterapia com a equipe agora pela manhã.",
+        },
+        {
+          de: "fam",
+          texto: "Que alegria saber disso! Posso passar para visitá-la amanhã por volta das 15h?",
+        },
+        {
+          de: "func",
+          texto:
+            "Com certeza, pode vir sim! As visitas estão abertas das 9h às 19h. Vou deixar avisado na recepção.",
+        },
+      ],
+    },
+    {
+      casaIdx: 1,
+      famIdx: 1,
+      funcIdx: 1,
+      mensagens: [
+        { de: "fam", texto: "Boa tarde! Gostaria de saber se a Dercília participou da oficina de memória." },
+        {
+          de: "func",
+          texto:
+            "Boa tarde, João! Participou sim, ficou super animada com a atividade em grupo e já está descansando na varanda.",
+        },
+      ],
+    },
+  ];
+
+  for (const cfg of CONVERSAS_DEMO) {
+    const idCasa = idsCasas[cfg.casaIdx];
+    const fam = familiares[cfg.famIdx];
+    const func = equipe[cfg.funcIdx];
+    if (!idCasa || !fam || !func) continue;
+
+    let { data: conv } = await fam.cliente
+      .from("conversa")
+      .select("id_conversa")
+      .eq("id_ilpi", idCasa)
+      .eq("id_usuario", fam.id)
+      .maybeSingle();
+
+    if (!conv) {
+      const { data: novaConv, error: eConv } = await fam.cliente
+        .from("conversa")
+        .insert({ id_ilpi: idCasa, id_usuario: fam.id })
+        .select("id_conversa")
+        .single();
+      exigir(eConv, `conversa ${fam.email}`);
+      conv = novaConv;
+    }
+
+    const { count: qtdMsgs } = await fam.cliente
+      .from("mensagem")
+      .select("id_mensagem", { count: "exact", head: true })
+      .eq("id_conversa", conv.id_conversa);
+
+    if (!qtdMsgs) {
+      for (const m of cfg.mensagens) {
+        const remetente = m.de === "fam" ? fam : func;
+        exigir(
+          (
+            await remetente.cliente.from("mensagem").insert({
+              id_conversa: conv.id_conversa,
+              id_usuario: remetente.id,
+              conteudo: m.texto,
+            })
+          ).error,
+          `mensagem ${remetente.email}`,
+        );
+      }
+      log(`chat: ${cfg.mensagens.length} mensagens criadas em "${CASAS[cfg.casaIdx].nome}"`);
+    }
+  }
+
+  // ---- escala de turnos (migration 0015) ------------------------------------
+  const { count: escalasExistentes, error: errEscalaCheck } = await gestor
+    .from("escala_turno")
+    .select("id_escala", { count: "exact", head: true });
+
+  if (!errEscalaCheck && !escalasExistentes) {
+    const vincAnaAurora = vinculosEquipePorCasa.get(`${idsCasas[0]}:${equipe[0].email}`);
+    const vincCarlosAurora = vinculosEquipePorCasa.get(`${idsCasas[0]}:${equipe[1].email}`);
+    const vincCarlosSerenidade = vinculosEquipePorCasa.get(`${idsCasas[1]}:${equipe[1].email}`);
+    const vincBiaRecanto = vinculosEquipePorCasa.get(`${idsCasas[2]}:${equipe[2].email}`);
+
+    const turnos = [
+      vincAnaAurora && {
+        id_vinculo: vincAnaAurora,
+        data: dataIsoRelativa(0),
+        hora_inicio: "07:00",
+        hora_fim: "13:00",
+        turno: "MANHA",
+        observacoes: "Ala térrea · medicação das 8h e acompanhamento do café.",
+      },
+      vincCarlosAurora && {
+        id_vinculo: vincCarlosAurora,
+        data: dataIsoRelativa(0),
+        hora_inicio: "13:00",
+        hora_fim: "19:00",
+        turno: "TARDE",
+        observacoes: "Passagem de plantão, fisioterapia e recepção de visitas.",
+      },
+      vincAnaAurora && {
+        id_vinculo: vincAnaAurora,
+        data: dataIsoRelativa(1),
+        hora_inicio: "07:00",
+        hora_fim: "19:00",
+        turno: "PLANTAO_12H",
+        observacoes: "Plantão diurno completo na Residencial Aurora.",
+      },
+      vincCarlosAurora && {
+        id_vinculo: vincCarlosAurora,
+        data: dataIsoRelativa(2),
+        hora_inicio: "07:00",
+        hora_fim: "13:00",
+        turno: "MANHA",
+        observacoes: "Aferição de sinais vitais matinais e curativos.",
+      },
+      vincAnaAurora && {
+        id_vinculo: vincAnaAurora,
+        data: dataIsoRelativa(3),
+        hora_inicio: "13:00",
+        hora_fim: "19:00",
+        turno: "TARDE",
+        observacoes: "Atividades recreativas e medicação do jantar.",
+      },
+      vincCarlosSerenidade && {
+        id_vinculo: vincCarlosSerenidade,
+        data: dataIsoRelativa(1),
+        hora_inicio: "08:00",
+        hora_fim: "17:00",
+        turno: "INTEGRAL",
+        observacoes: "Acompanhamento da oficina de memória na Casa Serenidade.",
+      },
+      vincBiaRecanto && {
+        id_vinculo: vincBiaRecanto,
+        data: dataIsoRelativa(2),
+        hora_inicio: "08:00",
+        hora_fim: "17:00",
+        turno: "INTEGRAL",
+        observacoes: "Organização de prontuários e preparo da unidade.",
+      },
+    ].filter(Boolean);
+
+    if (turnos.length > 0) {
+      exigir((await gestor.from("escala_turno").insert(turnos)).error, "escala_turno");
+      log(`escala: ${turnos.length} turnos cadastrados para a equipe`);
     }
   }
 

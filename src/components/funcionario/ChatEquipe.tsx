@@ -6,6 +6,7 @@ import {
   Loader2,
   MessageSquarePlus,
   Phone,
+  Radio,
   RefreshCw,
   Send,
   User,
@@ -16,6 +17,8 @@ import type {
   ConversaEquipe,
   MensagemEquipeChat,
 } from "@/lib/funcionario/dados";
+import { createClient } from "@/lib/supabase/client";
+import { supabaseConfigurado } from "@/lib/supabase/env";
 import { dataHora } from "@/lib/painel/formato";
 import { formatarTelefone } from "@/lib/validacao/telefone";
 import { cn } from "@/lib/utils";
@@ -29,10 +32,14 @@ export default function ChatEquipe({ dados }: { dados: ChatDaEquipe }) {
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState("");
   const [anuncio, setAnuncio] = useState("");
+  const [realtimeAtivo, setRealtimeAtivo] = useState(false);
   const [enviando, startEnvio] = useTransition();
   const [criando, startCriacao] = useTransition();
   const [atualizando, startAtualizacao] = useTransition();
   const fimMensagensRef = useRef<HTMLDivElement>(null);
+  const conversasMapaRef = useRef<Map<string, { familiarId: string; familiarNome: string }>>(
+    new Map(),
+  );
 
   const conversas: ConversaEquipe[] = useMemo(() => {
     const base =
@@ -40,14 +47,97 @@ export default function ChatEquipe({ dados }: { dados: ChatDaEquipe }) {
         ? dados.conversas
         : dados.conversas.filter((c) => c.casaId === filtroCasa);
 
-    if (mensagensLocais.length === 0) return base;
-    return base.map((c) => {
-      const extras = mensagensLocais.filter(
-        (m) => m.conversaId === c.id && !c.mensagens.some((orig) => orig.id === m.id),
-      );
-      return extras.length > 0 ? { ...c, mensagens: [...c.mensagens, ...extras] } : c;
+    const combinadas =
+      mensagensLocais.length === 0
+        ? base
+        : base.map((c) => {
+            const extras = mensagensLocais.filter(
+              (m) => m.conversaId === c.id && !c.mensagens.some((orig) => orig.id === m.id),
+            );
+            return extras.length > 0 ? { ...c, mensagens: [...c.mensagens, ...extras] } : c;
+          });
+
+    return [...combinadas].sort((a, b) => {
+      const ultA = a.mensagens[a.mensagens.length - 1]?.dataHora ?? a.criadaEm;
+      const ultB = b.mensagens[b.mensagens.length - 1]?.dataHora ?? b.criadaEm;
+      return ultB.localeCompare(ultA);
     });
   }, [dados.conversas, filtroCasa, mensagensLocais]);
+
+  useEffect(() => {
+    conversasMapaRef.current = new Map(
+      dados.conversas.map((c) => [
+        c.id,
+        { familiarId: c.familiarId, familiarNome: c.familiarNome },
+      ]),
+    );
+  }, [dados.conversas]);
+
+  // Assinatura Realtime (Postgres Changes) com RLS: recebe mensagens dos familiares em tempo real.
+  useEffect(() => {
+    if (!dados.usuarioId || !supabaseConfigurado()) return;
+
+    const supabase = createClient();
+    const canal = supabase
+      .channel(`chat-equipe-${dados.usuarioId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "mensagem" },
+        (payload) => {
+          const row = payload.new as {
+            id_mensagem?: string;
+            id_conversa?: string;
+            id_usuario?: string;
+            conteudo?: string;
+            data_hora?: string;
+          };
+          if (!row.id_mensagem || !row.id_conversa || !row.conteudo) return;
+
+          const meta = conversasMapaRef.current.get(row.id_conversa);
+          if (!meta) {
+            router.refresh();
+            return;
+          }
+
+          const ehMinha = row.id_usuario === dados.usuarioId;
+          const ehFamiliar = row.id_usuario === meta.familiarId;
+          const autorNome = ehMinha
+            ? "Você"
+            : ehFamiliar
+              ? meta.familiarNome
+              : (dados.nomesEquipe[row.id_usuario ?? ""] ?? "Equipe");
+
+          const nova: MensagemEquipeChat = {
+            id: row.id_mensagem,
+            conversaId: row.id_conversa,
+            conteudo: row.conteudo,
+            dataHora: row.data_hora ?? new Date().toISOString(),
+            ehMinha,
+            ehFamiliar,
+            autorNome,
+          };
+
+          setMensagensLocais((prev) =>
+            prev.some((m) => m.id === nova.id) ? prev : [...prev, nova],
+          );
+          if (!ehMinha) setAnuncio(`Nova mensagem de ${autorNome}.`);
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "conversa" },
+        () => {
+          router.refresh();
+        },
+      )
+      .subscribe((status) => {
+        setRealtimeAtivo(status === "SUBSCRIBED");
+      });
+
+    return () => {
+      void supabase.removeChannel(canal);
+    };
+  }, [dados.usuarioId, dados.nomesEquipe, router]);
 
   const contatosVisiveis = useMemo(
     () =>
@@ -260,22 +350,31 @@ export default function ChatEquipe({ dados }: { dados: ChatDaEquipe }) {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  disabled={atualizando}
-                  onClick={() =>
-                    startAtualizacao(() => {
-                      router.refresh();
-                    })
-                  }
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
-                >
-                  <RefreshCw
-                    className={cn("size-3.5", atualizando && "animate-spin")}
-                    aria-hidden="true"
-                  />
-                  Atualizar
-                </button>
+                <div className="flex items-center gap-2">
+                  {realtimeAtivo ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2.5 py-1 text-[0.68rem] font-semibold text-success">
+                      <Radio className="size-3" aria-hidden="true" />
+                      Ao vivo
+                    </span>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    disabled={atualizando}
+                    onClick={() =>
+                      startAtualizacao(() => {
+                        router.refresh();
+                      })
+                    }
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+                  >
+                    <RefreshCw
+                      className={cn("size-3.5", atualizando && "animate-spin")}
+                      aria-hidden="true"
+                    />
+                    Atualizar
+                  </button>
+                </div>
               </header>
 
               <div className="flex-1 space-y-3 overflow-y-auto p-5" style={{ maxHeight: "26rem" }}>

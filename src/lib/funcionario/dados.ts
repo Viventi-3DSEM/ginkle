@@ -851,6 +851,8 @@ export type ContatoDisponivelChat = {
 };
 
 export type ChatDaEquipe = {
+  usuarioId: string;
+  nomesEquipe: Record<string, string>;
   casas: VinculoOperacional[];
   conversas: ConversaEquipe[];
   contatosDisponiveis: ContatoDisponivelChat[];
@@ -858,7 +860,9 @@ export type ChatDaEquipe = {
 
 export async function chatDaEquipe(): Promise<ChatDaEquipe> {
   const [supabase, usuario] = await Promise.all([createClientOpcional(), usuarioDoFuncionario()]);
-  if (!supabase || !usuario) return { casas: [], conversas: [], contatosDisponiveis: [] };
+  if (!supabase || !usuario) {
+    return { usuarioId: "", nomesEquipe: {}, casas: [], conversas: [], contatosDisponiveis: [] };
+  }
 
   const casaPorId = new Map(usuario.vinculos.map((v) => [v.casaId, v]));
   const idsCasas = [...casaPorId.keys()];
@@ -1018,7 +1022,13 @@ export async function chatDaEquipe(): Promise<ChatDaEquipe> {
     a.nome.localeCompare(b.nome, "pt-BR"),
   );
 
-  return { casas: usuario.vinculos, conversas, contatosDisponiveis };
+  return {
+    usuarioId: usuario.id,
+    nomesEquipe: Object.fromEntries(nomeEquipePorUsuario.entries()),
+    casas: usuario.vinculos,
+    conversas,
+    contatosDisponiveis,
+  };
 }
 
 // ---- Minha escala (escala_turno — migration 0015) --------------------------

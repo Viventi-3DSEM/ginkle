@@ -1011,13 +1011,14 @@ export type CasaParaConversar = {
 };
 
 export type ChatDoFamiliar = {
+  usuarioId: string;
   conversas: ConversaFamiliar[];
   casasDisponiveis: CasaParaConversar[];
 };
 
 export async function chatDoFamiliar(): Promise<ChatDoFamiliar> {
   const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
-  if (!supabase || !user) return { conversas: [], casasDisponiveis: [] };
+  if (!supabase || !user) return { usuarioId: "", conversas: [], casasDisponiveis: [] };
 
   const [convRes, vincRes, adesoesRes] = await Promise.all([
     supabase
@@ -1124,5 +1125,5 @@ export async function chatDoFamiliar(): Promise<ChatDoFamiliar> {
     }));
   }
 
-  return { conversas, casasDisponiveis };
+  return { usuarioId: user.id, conversas, casasDisponiveis };
 }

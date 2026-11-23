@@ -22,8 +22,9 @@ No SQL Editor do Supabase, rodar **um arquivo por vez, nesta ordem**:
 13. `migrations/0013_fotos_storage.sql` — coluna `usuario.avatar_url`, buckets públicos (`fotos-casas`, `avatares`) e policies de Storage por pasta
 14. `migrations/0014_integridade_rls.sql` — corrige produto cartesiano em `ilpi_publica`, avaliações de casa privada para a equipe, edição de assinatura após desvincular familiar, `adesao_solicita` só em casa publicada, proteção LGPD de `cpf`/`data_nascimento` em `usuario` (`meu_perfil()`) e trava antifraude em `registro_assistencial.sincronizado_em_servidor`
 15. `migrations/0015_escala_chat.sql` — tabela `escala_turno` com RLS por casa (equipe lê, gestor gerencia) e policies de chat equipe ↔ familiar (`usuario_equipe_le_chat` + `conversa_cria` para equipe)
-16. `seed.sql` — as 8 casas do protótipo
-17. `seed_fotos_planos.sql` — fotos e planos dessas casas
+16. `migrations/0016_realtime_chat.sql` — inclui `public.mensagem` e `public.conversa` na publicação `supabase_realtime` para entrega em tempo real respeitando a RLS
+17. `seed.sql` — as 8 casas do protótipo
+18. `seed_fotos_planos.sql` — fotos e planos dessas casas
 
 Todos são idempotentes: pode rodar de novo sem duplicar.
 

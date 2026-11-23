@@ -7,11 +7,14 @@ import {
   Building2,
   Loader2,
   MessageSquarePlus,
+  Radio,
   RefreshCw,
   Send,
 } from "lucide-react";
 import { enviarMensagemFamiliar, iniciarConversa } from "@/lib/portal/actions";
 import type { ChatDoFamiliar, ConversaFamiliar, MensagemChat } from "@/lib/portal/dados";
+import { createClient } from "@/lib/supabase/client";
+import { supabaseConfigurado } from "@/lib/supabase/env";
 import { dataHora } from "@/lib/painel/formato";
 import { cn } from "@/lib/utils";
 
@@ -34,20 +37,90 @@ export default function ChatFamiliar({ dados, casaInicialId }: Props) {
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState("");
   const [anuncio, setAnuncio] = useState("");
+  const [realtimeAtivo, setRealtimeAtivo] = useState(false);
   const [enviando, startEnvio] = useTransition();
   const [criando, startCriacao] = useTransition();
   const [atualizando, startAtualizacao] = useTransition();
   const fimMensagensRef = useRef<HTMLDivElement>(null);
+  const idsConversasRef = useRef<Set<string>>(new Set());
 
   const conversas: ConversaFamiliar[] = useMemo(() => {
-    if (mensagensLocais.length === 0) return dados.conversas;
-    return dados.conversas.map((c) => {
-      const extras = mensagensLocais.filter(
-        (m) => m.conversaId === c.id && !c.mensagens.some((orig) => orig.id === m.id),
-      );
-      return extras.length > 0 ? { ...c, mensagens: [...c.mensagens, ...extras] } : c;
+    const combinadas =
+      mensagensLocais.length === 0
+        ? dados.conversas
+        : dados.conversas.map((c) => {
+            const extras = mensagensLocais.filter(
+              (m) => m.conversaId === c.id && !c.mensagens.some((orig) => orig.id === m.id),
+            );
+            return extras.length > 0 ? { ...c, mensagens: [...c.mensagens, ...extras] } : c;
+          });
+
+    return [...combinadas].sort((a, b) => {
+      const ultA = a.mensagens[a.mensagens.length - 1]?.dataHora ?? a.criadaEm;
+      const ultB = b.mensagens[b.mensagens.length - 1]?.dataHora ?? b.criadaEm;
+      return ultB.localeCompare(ultA);
     });
   }, [dados.conversas, mensagensLocais]);
+
+  useEffect(() => {
+    idsConversasRef.current = new Set(dados.conversas.map((c) => c.id));
+  }, [dados.conversas]);
+
+  // Assinatura Realtime (Postgres Changes) com RLS: recebe novas mensagens na hora sem recarregar.
+  useEffect(() => {
+    if (!dados.usuarioId || !supabaseConfigurado()) return;
+
+    const supabase = createClient();
+    const canal = supabase
+      .channel(`chat-familiar-${dados.usuarioId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "mensagem" },
+        (payload) => {
+          const row = payload.new as {
+            id_mensagem?: string;
+            id_conversa?: string;
+            id_usuario?: string;
+            conteudo?: string;
+            data_hora?: string;
+          };
+          if (!row.id_mensagem || !row.id_conversa || !row.conteudo) return;
+
+          if (!idsConversasRef.current.has(row.id_conversa)) {
+            router.refresh();
+            return;
+          }
+
+          const ehMinha = row.id_usuario === dados.usuarioId;
+          const nova: MensagemChat = {
+            id: row.id_mensagem,
+            conversaId: row.id_conversa,
+            conteudo: row.conteudo,
+            dataHora: row.data_hora ?? new Date().toISOString(),
+            ehMinha,
+          };
+
+          setMensagensLocais((prev) =>
+            prev.some((m) => m.id === nova.id) ? prev : [...prev, nova],
+          );
+          if (!ehMinha) setAnuncio("Nova resposta da instituição recebida.");
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "conversa" },
+        () => {
+          router.refresh();
+        },
+      )
+      .subscribe((status) => {
+        setRealtimeAtivo(status === "SUBSCRIBED");
+      });
+
+    return () => {
+      void supabase.removeChannel(canal);
+    };
+  }, [dados.usuarioId, router]);
 
   const conversaAtiva = useMemo(
     () => conversas.find((c) => c.id === ativaId) ?? conversas[0] ?? null,
@@ -220,22 +293,31 @@ export default function ChatFamiliar({ dados, casaInicialId }: Props) {
                   ) : null}
                 </div>
 
-                <button
-                  type="button"
-                  disabled={atualizando}
-                  onClick={() =>
-                    startAtualizacao(() => {
-                      router.refresh();
-                    })
-                  }
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
-                >
-                  <RefreshCw
-                    className={cn("size-3.5", atualizando && "animate-spin")}
-                    aria-hidden="true"
-                  />
-                  Atualizar
-                </button>
+                <div className="flex items-center gap-2">
+                  {realtimeAtivo ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2.5 py-1 text-[0.68rem] font-semibold text-success">
+                      <Radio className="size-3" aria-hidden="true" />
+                      Ao vivo
+                    </span>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    disabled={atualizando}
+                    onClick={() =>
+                      startAtualizacao(() => {
+                        router.refresh();
+                      })
+                    }
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+                  >
+                    <RefreshCw
+                      className={cn("size-3.5", atualizando && "animate-spin")}
+                      aria-hidden="true"
+                    />
+                    Atualizar
+                  </button>
+                </div>
               </header>
 
               <div className="flex-1 space-y-3 overflow-y-auto p-5" style={{ maxHeight: "26rem" }}>
