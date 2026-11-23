@@ -7,9 +7,10 @@ import {
 } from "./env";
 
 /** Áreas que exigem sessão. */
-const AREAS_PROTEGIDAS: { prefixo: string; cargo?: "GESTOR" | "FUNCIONARIO" }[] = [
-  { prefixo: "/gerente", cargo: "GESTOR" },
-  { prefixo: "/home-funcionario", cargo: "FUNCIONARIO" },
+const AREAS_PROTEGIDAS: { prefixo: string; cargos?: ("GESTOR" | "FUNCIONARIO")[] }[] = [
+  { prefixo: "/gerente", cargos: ["GESTOR"] },
+  { prefixo: "/funcionario", cargos: ["FUNCIONARIO", "GESTOR"] },
+  { prefixo: "/home-funcionario", cargos: ["FUNCIONARIO", "GESTOR"] },
   { prefixo: "/cliente" },
   { prefixo: "/home-cliente" },
   // Porta de entrada do gestor: só exige sessão, porque é aqui que a pessoa
@@ -90,7 +91,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Só consulta o vínculo quando o desvio depende dele.
-  const precisaCargo = Boolean(area?.cargo) || TELAS_AUTH.includes(pathname);
+  const precisaCargo = Boolean(area?.cargos?.length) || TELAS_AUTH.includes(pathname);
   let cargos: string[] = [];
 
   if (precisaCargo) {
@@ -113,7 +114,7 @@ export async function updateSession(request: NextRequest) {
     cargo === "GESTOR"
       ? "/gerente"
       : cargo === "FUNCIONARIO"
-        ? "/home-funcionario"
+        ? "/funcionario"
         : "/cliente";
 
   if (TELAS_AUTH.includes(pathname)) {
@@ -123,8 +124,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Permite que usuários com múltiplos vínculos (ex.: GESTOR em A e FUNCIONARIO em B) acessem ambos os painéis.
-  if (area?.cargo && !cargos.includes(area.cargo)) {
+  // Permite que usuários com múltiplos vínculos (ou gestores acessando /funcionario) entrem nas áreas autorizadas.
+  if (area?.cargos && !area.cargos.some((c) => cargos.includes(c))) {
     const url = request.nextUrl.clone();
     url.pathname = home;
     url.search = "";

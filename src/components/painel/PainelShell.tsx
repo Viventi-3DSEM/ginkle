@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef } from "react";
 import {
   Building2,
+  ClipboardPlus,
   Globe,
   LayoutDashboard,
   LogOut,
@@ -175,6 +176,15 @@ export default function PainelShell({ usuario, children }: Props) {
               <LinkPendingHint className="ml-auto" />
             </Link>
           ))}
+
+          <Link
+            href="/funcionario"
+            className="flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+          >
+            <ClipboardPlus className="size-[18px] shrink-0" aria-hidden="true" />
+            <span>Painel do turno</span>
+            <LinkPendingHint className="ml-auto" />
+          </Link>
 
           <Link
             href="/"
@@ -354,6 +364,15 @@ export default function PainelShell({ usuario, children }: Props) {
                 {item.label}
               </Link>
             ))}
+
+            <Link
+              href="/funcionario"
+              onClick={() => menuRef.current?.close()}
+              className="flex items-center gap-3 rounded-sm px-3 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary/60"
+            >
+              <ClipboardPlus className="size-5 shrink-0" aria-hidden="true" />
+              Painel do turno
+            </Link>
 
             <Link
               href="/"

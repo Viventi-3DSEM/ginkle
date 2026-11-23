@@ -1144,6 +1144,8 @@ export async function atualizarPerfil(_estado: Estado, form: FormData): Promise<
 
   revalidatePath("/gerente", "layout");
   revalidatePath("/gerente/perfil");
+  revalidatePath("/funcionario", "layout");
+  revalidatePath("/funcionario/perfil");
   revalidatePath("/cliente", "layout");
   return { ok: "Dados pessoais atualizados." };
 }
@@ -1275,6 +1277,8 @@ export async function atualizarAvatar(
 
   revalidatePath("/gerente", "layout");
   revalidatePath("/gerente/perfil");
+  revalidatePath("/funcionario", "layout");
+  revalidatePath("/funcionario/perfil");
   revalidatePath("/cliente", "layout");
   return { ok: url ? "Foto de perfil atualizada." : "Foto de perfil removida." };
 }

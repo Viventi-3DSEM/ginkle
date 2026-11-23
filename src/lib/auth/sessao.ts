@@ -4,7 +4,7 @@ export type Cargo = "GESTOR" | "FUNCIONARIO" | null;
 
 export const HOME_POR_CARGO: Record<"GESTOR" | "FUNCIONARIO" | "CLIENTE", string> = {
   GESTOR: "/gerente",
-  FUNCIONARIO: "/home-funcionario",
+  FUNCIONARIO: "/funcionario",
   CLIENTE: "/cliente",
 };
 

@@ -54,7 +54,7 @@ export default function Header() {
         if (!ativo) return;
         const cargos = (vinculos ?? []).map((v) => v.cargo as string);
         if (cargos.includes("GESTOR")) setPainelHref("/gerente");
-        else if (cargos.includes("FUNCIONARIO")) setPainelHref("/home-funcionario");
+        else if (cargos.includes("FUNCIONARIO")) setPainelHref("/funcionario");
         else setPainelHref("/cliente");
       })
       .catch(() => {});

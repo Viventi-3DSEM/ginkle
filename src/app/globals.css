@@ -367,3 +367,8 @@
     border-left-color: var(--brand-strong);
   }
 }
+
+/* Destaque de erro pós-interação (sem acusar campos vazios antes do foco/envio). */
+.ginkle-field:is(:user-invalid, [aria-invalid="true"]) {
+  border-color: var(--danger);
+}
