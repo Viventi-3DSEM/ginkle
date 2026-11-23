@@ -18,14 +18,14 @@ export default function CasaHero({ casa }: { casa: IlpiCompleta }) {
           <span className="truncate">{casa.nome}</span>
         </nav>
 
-        <div className="mt-5 grid gap-2 sm:grid-cols-[2fr_1fr] sm:grid-rows-2">
-          <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-muted sm:row-span-2 sm:aspect-auto sm:min-h-[22rem]">
+        {fotos.length === 1 ? (
+          <div className="relative mt-5 aspect-[16/9] max-h-[26rem] w-full overflow-hidden rounded-xl bg-muted">
             <Image
               src={fotos[0].url}
-              alt={`Fachada de ${casa.nome}, em ${casa.cidade}`}
+              alt={fotos[0].legenda ?? `Fachada de ${casa.nome}, em ${casa.cidade}`}
               fill
               priority
-              sizes="(max-width: 640px) 100vw, 66vw"
+              sizes="(max-width: 1152px) 100vw, 1152px"
               className="object-cover"
             />
             {casa.destaque ? (
@@ -34,22 +34,89 @@ export default function CasaHero({ casa }: { casa: IlpiCompleta }) {
               </span>
             ) : null}
           </div>
+        ) : fotos.length === 2 ? (
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            {fotos.map((foto, idx) => (
+              <div
+                key={`${foto.url}-${idx}`}
+                className="relative aspect-[16/10] overflow-hidden rounded-xl bg-muted sm:min-h-[20rem]"
+              >
+                <Image
+                  src={foto.url}
+                  alt={
+                    foto.legenda ??
+                    (idx === 0
+                      ? `Fachada de ${casa.nome}, em ${casa.cidade}`
+                      : `Interior de ${casa.nome}`)
+                  }
+                  fill
+                  priority={idx === 0}
+                  sizes="(max-width: 640px) 100vw, 50vw"
+                  className="object-cover"
+                />
+                {idx === 0 && casa.destaque ? (
+                  <span className="absolute left-3 top-3 rounded-full bg-card px-2.5 py-1 font-sans text-[11px] font-medium text-foreground shadow-sm">
+                    {casa.destaque}
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-5 space-y-2">
+            <div className="grid gap-2 sm:grid-cols-[2fr_1fr] sm:grid-rows-2">
+              <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-muted sm:row-span-2 sm:aspect-auto sm:min-h-[22rem]">
+                <Image
+                  src={fotos[0].url}
+                  alt={fotos[0].legenda ?? `Fachada de ${casa.nome}, em ${casa.cidade}`}
+                  fill
+                  priority
+                  sizes="(max-width: 640px) 100vw, 66vw"
+                  className="object-cover"
+                />
+                {casa.destaque ? (
+                  <span className="absolute left-3 top-3 rounded-full bg-card px-2.5 py-1 font-sans text-[11px] font-medium text-foreground shadow-sm">
+                    {casa.destaque}
+                  </span>
+                ) : null}
+              </div>
 
-          {fotos.slice(1, 3).map((foto) => (
-            <div
-              key={foto.url}
-              className="relative hidden overflow-hidden rounded-xl bg-muted sm:block"
-            >
-              <Image
-                src={foto.url}
-                alt={foto.legenda ?? `Interior de ${casa.nome}`}
-                fill
-                sizes="33vw"
-                className="object-cover"
-              />
+              {fotos.slice(1, 3).map((foto, idx) => (
+                <div
+                  key={`${foto.url}-${idx}`}
+                  className="relative hidden overflow-hidden rounded-xl bg-muted sm:block"
+                >
+                  <Image
+                    src={foto.url}
+                    alt={foto.legenda ?? `Interior de ${casa.nome}`}
+                    fill
+                    sizes="33vw"
+                    className="object-cover"
+                  />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+
+            {fotos.length > 3 ? (
+              <ul className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                {fotos.slice(3, 9).map((foto, idx) => (
+                  <li
+                    key={`${foto.url}-extra-${idx}`}
+                    className="relative aspect-[4/3] overflow-hidden rounded-lg bg-muted"
+                  >
+                    <Image
+                      src={foto.url}
+                      alt={foto.legenda ?? `Espaço de ${casa.nome}`}
+                      fill
+                      sizes="(max-width: 640px) 33vw, 180px"
+                      className="object-cover"
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        )}
 
         <div className="flex flex-col gap-4 pb-10 pt-6 md:flex-row md:items-start md:justify-between">
           <div>

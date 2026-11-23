@@ -81,7 +81,7 @@ const NAV_SECUNDARIO = [
 const NAV_TODOS = [...NAV_PRINCIPAL, ...NAV_SECUNDARIO];
 
 type Props = {
-  usuario: { nome: string; email: string };
+  usuario: { nome: string; email: string; avatarUrl?: string | null };
   children: React.ReactNode;
 };
 
@@ -186,9 +186,19 @@ export default function PainelShell({ usuario, children }: Props) {
                 : "hover:bg-secondary/50",
             )}
           >
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-soft font-heading text-xs font-bold text-brand-strong">
-              {usuario.nome.slice(0, 1).toUpperCase()}
-            </span>
+            {usuario.avatarUrl ? (
+              <Image
+                src={usuario.avatarUrl}
+                alt=""
+                width={32}
+                height={32}
+                className="size-8 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-soft font-heading text-xs font-bold text-brand-strong">
+                {usuario.nome.slice(0, 1).toUpperCase()}
+              </span>
+            )}
             <span className="min-w-0">
               <span className="block truncate text-sm font-medium">{usuario.nome}</span>
               <span className="block truncate text-xs text-muted-foreground">

@@ -12,6 +12,7 @@ import {
   Phone,
   Star,
 } from "lucide-react";
+import GerenciadorFotosCasa from "@/components/painel/GerenciadorFotosCasa";
 import VisibilidadeCasa from "@/components/painel/VisibilidadeCasa";
 import { casaDoGestor } from "@/lib/painel/dados";
 import { dataCurta, idade, reais } from "@/lib/painel/formato";
@@ -357,27 +358,11 @@ export default async function CasaDetalhePage({ params }: Props) {
         </Secao>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Secao titulo="Fotos">
-          {casa.fotos.length === 0 ? (
-            <Vazio texto="Nenhuma foto adicionada." />
-          ) : (
-            <ul className="grid grid-cols-3 gap-2">
-              {casa.fotos.slice(0, 6).map((foto) => (
-                <li key={foto.id} className="relative aspect-[4/3] overflow-hidden rounded-sm bg-secondary">
-                  <Image
-                    src={foto.url}
-                    alt={foto.legenda ?? ""}
-                    fill
-                    sizes="(max-width: 768px) 33vw, 200px"
-                    className="object-cover"
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-        </Secao>
+      <Secao titulo="Fotos da casa">
+        <GerenciadorFotosCasa casaId={casa.id} fotos={casa.fotos} />
+      </Secao>
 
+      <div className="grid gap-6 lg:grid-cols-2">
         <Secao
           titulo="Solicitações de entrada"
           acao={{ href: `/gerente/residentes?casa=${casa.id}`, label: "Gerenciar" }}
@@ -406,47 +391,47 @@ export default async function CasaDetalhePage({ params }: Props) {
             </ul>
           )}
         </Secao>
-      </div>
 
-      <Secao titulo="Avaliações">
-        {casa.avaliacoesLista.length === 0 ? (
-          <Vazio texto="Esta casa ainda não recebeu avaliações." />
-        ) : (
-          <ul className="space-y-4">
-            {casa.avaliacoesLista.map((avaliacao, indice) => (
-              <li
-                key={`${avaliacao.autor}-${indice}`}
-                className="border-t border-border pt-4 first:border-t-0 first:pt-0"
-              >
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="inline-flex gap-0.5" aria-label={`${avaliacao.nota} de 5`}>
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <Star
-                        key={n}
-                        className={
-                          n <= avaliacao.nota
-                            ? "size-3.5 fill-brand-strong text-brand-strong"
-                            : "size-3.5 text-border"
-                        }
-                        aria-hidden="true"
-                      />
-                    ))}
-                  </span>
-                  <span className="text-sm font-medium">{avaliacao.autor}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {dataCurta(avaliacao.quando)}
-                  </span>
-                </div>
-                {avaliacao.comentario ? (
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    {avaliacao.comentario}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Secao>
+        <Secao titulo="Avaliações">
+          {casa.avaliacoesLista.length === 0 ? (
+            <Vazio texto="Esta casa ainda não recebeu avaliações." />
+          ) : (
+            <ul className="space-y-4">
+              {casa.avaliacoesLista.map((avaliacao, indice) => (
+                <li
+                  key={`${avaliacao.autor}-${indice}`}
+                  className="border-t border-border pt-4 first:border-t-0 first:pt-0"
+                >
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="inline-flex gap-0.5" aria-label={`${avaliacao.nota} de 5`}>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <Star
+                          key={n}
+                          className={
+                            n <= avaliacao.nota
+                              ? "size-3.5 fill-brand-strong text-brand-strong"
+                              : "size-3.5 text-border"
+                          }
+                          aria-hidden="true"
+                        />
+                      ))}
+                    </span>
+                    <span className="text-sm font-medium">{avaliacao.autor}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {dataCurta(avaliacao.quando)}
+                    </span>
+                  </div>
+                  {avaliacao.comentario ? (
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      {avaliacao.comentario}
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Secao>
+      </div>
     </div>
   );
 }

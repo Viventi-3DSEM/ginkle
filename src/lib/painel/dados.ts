@@ -117,7 +117,7 @@ type LinhaCasa = {
   tags: string[] | null;
 };
 
-export type UsuarioDoPainel = { nome: string; email: string };
+export type UsuarioDoPainel = { nome: string; email: string; avatarUrl: string | null };
 
 export async function usuarioAtual(): Promise<UsuarioDoPainel | null> {
   const supabase = await createClientOpcional();
@@ -130,13 +130,14 @@ export async function usuarioAtual(): Promise<UsuarioDoPainel | null> {
 
   const { data } = await supabase
     .from("usuario")
-    .select("nome, email")
+    .select("nome, email, avatar_url")
     .eq("id_usuario", user.id)
     .maybeSingle();
 
   return {
     nome: (data?.nome as string | undefined) ?? user.email ?? "Gestor",
     email: (data?.email as string | undefined) ?? user.email ?? "",
+    avatarUrl: (data?.avatar_url as string | null | undefined) ?? null,
   };
 }
 
@@ -1327,6 +1328,7 @@ export type PerfilDoGestor = {
   id: string;
   nome: string;
   email: string;
+  avatarUrl: string | null;
   cpf: string | null;
   telefone: string | null;
   dataNascimento: string | null;
@@ -1346,7 +1348,7 @@ export async function perfilDoGestor(): Promise<PerfilDoGestor | null> {
   const [usuarioRes, vinculosRes] = await Promise.all([
     supabase
       .from("usuario")
-      .select("id_usuario, nome, email, cpf, telefone, data_nascimento, data_cadastro")
+      .select("id_usuario, nome, email, avatar_url, cpf, telefone, data_nascimento, data_cadastro")
       .eq("id_usuario", user.id)
       .maybeSingle(),
     supabase
@@ -1361,6 +1363,7 @@ export async function perfilDoGestor(): Promise<PerfilDoGestor | null> {
     id_usuario: string;
     nome: string;
     email: string;
+    avatar_url: string | null;
     cpf: string | null;
     telefone: string | null;
     data_nascimento: string | null;
@@ -1389,6 +1392,7 @@ export async function perfilDoGestor(): Promise<PerfilDoGestor | null> {
     id: u?.id_usuario ?? user.id,
     nome: u?.nome ?? user.email ?? "Gestor",
     email: u?.email ?? user.email ?? "",
+    avatarUrl: u?.avatar_url ?? null,
     cpf: u?.cpf ?? null,
     telefone: u?.telefone ?? null,
     dataNascimento: u?.data_nascimento ?? null,

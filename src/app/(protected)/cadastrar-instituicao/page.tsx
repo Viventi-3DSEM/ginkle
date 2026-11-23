@@ -56,7 +56,7 @@ export default async function CadastrarInstituicaoPage() {
         <CasaForm
           acao={criarCasa}
           titulo="Cadastre sua instituição"
-          subtitulo="Preencha os dados principais da casa. Depois você pode adicionar planos, fotos e equipe."
+          subtitulo="Preencha os dados principais e, se quiser, já inclua fotos da casa."
           rotulo="Cadastrar instituição"
           voltarPara="/"
         />

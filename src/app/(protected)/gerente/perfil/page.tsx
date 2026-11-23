@@ -2,9 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, Building2, Calendar, LogOut } from "lucide-react";
 import { sair } from "@/app/(auth)/actions";
+import AvatarUpload from "@/components/painel/AvatarUpload";
 import { AlterarSenhaForm, PerfilDadosForm } from "@/components/painel/PerfilGestorForms";
 import { perfilDoGestor } from "@/lib/painel/dados";
-import { chaveDia, dataCurta, iniciais, rotuloCargo } from "@/lib/painel/formato";
+import { chaveDia, dataCurta, rotuloCargo } from "@/lib/painel/formato";
 
 export const metadata = { title: "Perfil" };
 
@@ -16,14 +17,7 @@ export default async function PerfilGestorPage() {
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-wrap items-center gap-4">
-        <span
-          aria-hidden="true"
-          className="grid size-14 shrink-0 place-items-center rounded-full bg-brand-soft font-heading text-base font-bold text-brand-strong"
-        >
-          {iniciais(perfil.nome)}
-        </span>
-
+      <header className="space-y-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-heading text-2xl font-semibold sm:text-3xl">{perfil.nome}</h1>
@@ -44,6 +38,12 @@ export default async function PerfilGestorPage() {
             ) : null}
           </p>
         </div>
+
+        <AvatarUpload
+          usuarioId={perfil.id}
+          nome={perfil.nome}
+          avatarUrl={perfil.avatarUrl}
+        />
       </header>
 
       <div className="grid gap-6 lg:grid-cols-3">

@@ -1,9 +1,17 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useActionState, useState } from "react";
-import { Loader2 } from "lucide-react";
-import type { Estado } from "@/lib/painel/actions";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
+import { registrarFotosCasa, type Estado } from "@/lib/painel/actions";
+import {
+  ACCEPT_IMAGENS,
+  enviarImagemStorage,
+  LIMITE_FOTO_CASA,
+  validarImagem,
+} from "@/lib/supabase/storage";
 import { formatarCnpj } from "@/lib/validacao/cnpj";
 import { formatarTelefone } from "@/lib/validacao/telefone";
 import { slugificar } from "@/lib/validacao/slug";
@@ -77,6 +85,15 @@ type Props = {
   valores?: ValoresCasa;
 };
 
+type FotoNaFila = {
+  id: string;
+  arquivo: File;
+  preview: string;
+  legenda: string;
+};
+
+const MAX_FOTOS_CADASTRO = 6;
+
 export default function CasaForm({
   acao,
   titulo,
@@ -86,16 +103,105 @@ export default function CasaForm({
   idCasa,
   valores,
 }: Props) {
+  const router = useRouter();
   const inicial = valores ?? VAZIO;
-  const [estado, enviar, enviando] = useActionState<Estado, FormData>(acao, {});
+  const inputFotosRef = useRef<HTMLInputElement>(null);
 
   const [nome, setNome] = useState(inicial.nome);
   const [slug, setSlug] = useState(inicial.slug);
   const [slugTravado, setSlugTravado] = useState(Boolean(inicial.slug));
   const [cnpj, setCnpj] = useState(inicial.cnpj);
   const [telefone, setTelefone] = useState(inicial.telefone);
+  const [fotosFila, setFotosFila] = useState<FotoNaFila[]>([]);
+  const [erroFoto, setErroFoto] = useState("");
+  const [enviandoFotos, setEnviandoFotos] = useState(false);
+
+  const fotosFilaRef = useRef<FotoNaFila[]>([]);
+  useEffect(() => {
+    fotosFilaRef.current = fotosFila;
+  }, [fotosFila]);
+
+  useEffect(() => {
+    return () => {
+      for (const f of fotosFilaRef.current) {
+        URL.revokeObjectURL(f.preview);
+      }
+    };
+  }, []);
+
+  const [estado, enviar, enviando] = useActionState<Estado, FormData>(
+    async (prev, formData) => {
+      const res = await acao(prev, formData);
+      if (res.casaId) {
+        const filaAtual = fotosFilaRef.current;
+        if (filaAtual.length > 0) {
+          setEnviandoFotos(true);
+          const enviadas: { url: string; legenda?: string | null }[] = [];
+          for (const item of filaAtual) {
+            const up = await enviarImagemStorage("fotos-casas", res.casaId, item.arquivo);
+            if (up.url) {
+              enviadas.push({ url: up.url, legenda: item.legenda || null });
+            }
+          }
+          if (enviadas.length > 0) {
+            await registrarFotosCasa(res.casaId, enviadas);
+          }
+          setEnviandoFotos(false);
+        }
+        router.push(`/gerente/casas/${res.casaId}`);
+      }
+      return res;
+    },
+    {},
+  );
+
+  function adicionarFotosFila(lista: FileList | null) {
+    if (!lista || lista.length === 0) return;
+    setErroFoto("");
+    const vagas = Math.max(0, MAX_FOTOS_CADASTRO - fotosFila.length);
+    if (vagas === 0) {
+      setErroFoto(`Você pode selecionar até ${MAX_FOTOS_CADASTRO} fotos no cadastro.`);
+      return;
+    }
+
+    const selecionados = Array.from(lista).slice(0, vagas);
+    const novas: FotoNaFila[] = [];
+    for (const arquivo of selecionados) {
+      const erroVal = validarImagem(arquivo, LIMITE_FOTO_CASA);
+      if (erroVal) {
+        setErroFoto(`${arquivo.name}: ${erroVal}`);
+        continue;
+      }
+      novas.push({
+        id: crypto.randomUUID(),
+        arquivo,
+        preview: URL.createObjectURL(arquivo),
+        legenda: "",
+      });
+    }
+    if (novas.length > 0) {
+      setFotosFila((atual) => [...atual, ...novas]);
+    }
+  }
+
+  function removerFotoFila(id: string) {
+    setFotosFila((atual) => {
+      const alvo = atual.find((f) => f.id === id);
+      if (alvo) URL.revokeObjectURL(alvo.preview);
+      return atual.filter((f) => f.id !== id);
+    });
+  }
+
+  function definirCapaFila(id: string) {
+    setFotosFila((atual) => {
+      const alvo = atual.find((f) => f.id === id);
+      if (!alvo) return atual;
+      return [alvo, ...atual.filter((f) => f.id !== id)];
+    });
+  }
 
   const slugAtual = slugTravado ? slug : slugificar(nome);
+  const ocupado = enviando || enviandoFotos;
 
   return (
     <div className="mx-auto w-full max-w-3xl">
@@ -113,6 +219,9 @@ export default function CasaForm({
 
       <form action={enviar} className="mt-8 space-y-8" noValidate>
         {idCasa ? <input type="hidden" name="id" value={idCasa} /> : null}
+        {!idCasa && fotosFila.length > 0 ? (
+          <input type="hidden" name="retornarId" value="1" />
+        ) : null}
         <input type="hidden" name="cnpjAtual" value={inicial.cnpj.replace(/\D/g, "")} />
 
         <section className="rounded-sm border border-border bg-card p-5 sm:p-7">
@@ -268,14 +377,128 @@ export default function CasaForm({
           </div>
         </section>
 
+        {!idCasa ? (
+          <section className="rounded-sm border border-border bg-card p-5 sm:p-7">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-heading text-lg font-semibold">Fotos da casa (opcional)</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  JPG, PNG, WebP ou AVIF até 5 MB cada. A primeira foto será a capa.
+                </p>
+              </div>
+              <div>
+                <input
+                  ref={inputFotosRef}
+                  id="cadastro-casa-fotos"
+                  type="file"
+                  accept={ACCEPT_IMAGENS}
+                  multiple
+                  disabled={ocupado || fotosFila.length >= MAX_FOTOS_CADASTRO}
+                  onChange={(e) => {
+                    adicionarFotosFila(e.target.files);
+                    e.target.value = "";
+                  }}
+                  className="sr-only"
+                />
+                <button
+                  type="button"
+                  disabled={ocupado || fotosFila.length >= MAX_FOTOS_CADASTRO}
+                  onClick={() => inputFotosRef.current?.click()}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-sm border border-border px-4 py-2 text-xs font-medium transition-colors hover:bg-secondary disabled:opacity-50"
+                >
+                  <ImagePlus className="size-4 text-brand-strong" aria-hidden="true" />
+                  Selecionar fotos ({fotosFila.length}/{MAX_FOTOS_CADASTRO})
+                </button>
+              </div>
+            </div>
+
+            {erroFoto ? (
+              <p
+                role="alert"
+                className="mt-4 border-l-2 border-danger px-3 py-2 text-xs text-danger"
+              >
+                {erroFoto}
+              </p>
+            ) : null}
+
+            {fotosFila.length > 0 ? (
+              <ul className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {fotosFila.map((foto, indice) => (
+                  <li
+                    key={foto.id}
+                    className="flex flex-col overflow-hidden rounded-sm border border-border bg-background/60"
+                  >
+                    <div className="relative aspect-[4/3] w-full bg-secondary">
+                      <Image
+                        src={foto.preview}
+                        alt={foto.legenda || `Pré-visualização ${indice + 1}`}
+                        fill
+                        unoptimized
+                        className="object-cover"
+                      />
+                      {indice === 0 ? (
+                        <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-primary-foreground">
+                          <Star className="size-3 fill-current" aria-hidden="true" />
+                          Capa
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="space-y-2 p-2.5">
+                      <input
+                        type="text"
+                        maxLength={160}
+                        value={foto.legenda}
+                        disabled={ocupado}
+                        onChange={(e) => {
+                          const valor = e.target.value;
+                          setFotosFila((atual) =>
+                            atual.map((f) => (f.id === foto.id ? { ...f, legenda: valor } : f)),
+                          );
+                        }}
+                        placeholder="Legenda opcional"
+                        aria-label={`Legenda da foto ${indice + 1}`}
+                        className="min-h-8 w-full border-b border-input bg-transparent py-1 text-xs outline-none placeholder:text-muted-foreground focus-visible:border-brand-strong"
+                      />
+                      <div className="flex items-center justify-between gap-2">
+                        {indice > 0 ? (
+                          <button
+                            type="button"
+                            disabled={ocupado}
+                            onClick={() => definirCapaFila(foto.id)}
+                            className="inline-flex min-h-7 items-center gap-1 rounded-sm border border-border px-2 py-0.5 text-[0.7rem] font-medium hover:bg-secondary"
+                          >
+                            <Star className="size-3 text-brand-strong" aria-hidden="true" />
+                            Capa
+                          </button>
+                        ) : (
+                          <span className="text-[0.7rem] text-muted-foreground">Foto principal</span>
+                        )}
+                        <button
+                          type="button"
+                          disabled={ocupado}
+                          onClick={() => removerFotoFila(foto.id)}
+                          aria-label={`Remover foto ${indice + 1}`}
+                          className="inline-flex size-7 items-center justify-center rounded-sm border border-border text-muted-foreground hover:border-danger/40 hover:text-danger"
+                        >
+                          <Trash2 className="size-3.5" aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+        ) : null}
+
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
-            disabled={enviando}
+            disabled={ocupado}
             className="inline-flex items-center justify-center gap-2 rounded-sm bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
           >
-            {enviando && <Loader2 className="size-4 animate-spin" />}
-            {rotulo}
+            {ocupado && <Loader2 className="size-4 animate-spin" />}
+            {enviandoFotos ? "Enviando fotos..." : rotulo}
           </button>
           <Link
             href={voltarPara}

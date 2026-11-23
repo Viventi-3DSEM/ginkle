@@ -9,7 +9,7 @@ import { cnpjValido, formatarCnpj } from "@/lib/validacao/cnpj";
 import { formatarTelefone, telefoneValido } from "@/lib/validacao/telefone";
 import { slugificar, slugValido } from "@/lib/validacao/slug";
 
-export type Estado = { erro?: string; ok?: string };
+export type Estado = { erro?: string; ok?: string; casaId?: string };
 
 const SEM_SUPABASE =
   "O Supabase ainda não está configurado. Preencha o .env.local para continuar.";
@@ -181,6 +181,11 @@ export async function criarCasa(_estado: Estado, form: FormData): Promise<Estado
     return {
       ok: "Casa criada. Faltou salvar vagas e tags: abra a edição para completar.",
     };
+  }
+
+  // Quando o formulário tem fotos na fila, devolve o id para o cliente enviar ao Storage antes de redirecionar.
+  if (texto(form, "retornarId") === "1") {
+    return { casaId: id };
   }
 
   redirect(`/gerente/casas/${id}`);
@@ -1182,4 +1187,256 @@ export async function alterarSenha(_estado: Estado, form: FormData): Promise<Est
   }
 
   return { ok: "Senha atualizada com sucesso." };
+}
+
+function extrairCaminhoBucket(url: string, bucket: "fotos-casas" | "avatares"): string | null {
+  const marcador = `/storage/v1/object/public/${bucket}/`;
+  const idx = url.indexOf(marcador);
+  if (idx === -1) return null;
+  const resto = url.slice(idx + marcador.length).split("?")[0];
+  return resto ? decodeURIComponent(resto) : null;
+}
+
+async function revalidarFotosCasa(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  casaId: string,
+) {
+  const { data: casa } = await supabase
+    .from("ilpi")
+    .select("slug")
+    .eq("id_ilpi", casaId)
+    .maybeSingle();
+
+  revalidatePath("/gerente");
+  revalidatePath("/gerente/casas");
+  revalidatePath(`/gerente/casas/${casaId}`);
+  revalidatePath(`/gerente/casas/${casaId}/editar`);
+  revalidatePath("/casas");
+  if (casa?.slug) revalidatePath(`/casas/${casa.slug as string}`);
+}
+
+export async function atualizarAvatar(
+  url: string | null,
+): Promise<{ erro?: string; ok?: string }> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { erro: "Sua sessão expirou. Entre novamente." };
+
+  if (url !== null) {
+    const caminho = extrairCaminhoBucket(url, "avatares");
+    if (!url.startsWith("https://") || !caminho || !caminho.startsWith(`${user.id}/`)) {
+      return { erro: "Endereço de imagem inválido." };
+    }
+  }
+
+  const { data: atual } = await supabase
+    .from("usuario")
+    .select("avatar_url")
+    .eq("id_usuario", user.id)
+    .maybeSingle();
+
+  const { error } = await supabase
+    .from("usuario")
+    .update({ avatar_url: url })
+    .eq("id_usuario", user.id);
+
+  if (error) return { erro: mensagemErro(error) };
+
+  const antigaUrl = (atual?.avatar_url as string | null | undefined) ?? null;
+  if (antigaUrl && antigaUrl !== url) {
+    const caminhoAntigo = extrairCaminhoBucket(antigaUrl, "avatares");
+    if (caminhoAntigo && caminhoAntigo.startsWith(`${user.id}/`)) {
+      await supabase.storage.from("avatares").remove([caminhoAntigo]);
+    }
+  }
+
+  revalidatePath("/gerente", "layout");
+  revalidatePath("/gerente/perfil");
+  revalidatePath("/cliente", "layout");
+  return { ok: url ? "Foto de perfil atualizada." : "Foto de perfil removida." };
+}
+
+export async function registrarFotosCasa(
+  casaId: string,
+  fotos: { url: string; legenda?: string | null }[],
+): Promise<{ erro?: string; ok?: string }> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+  if (!UUID_RE.test(casaId)) return { erro: "Casa não encontrada." };
+  if (fotos.length === 0 || fotos.length > 12) {
+    return { erro: "Envie entre 1 e 12 fotos por vez." };
+  }
+
+  for (const foto of fotos) {
+    const caminho = extrairCaminhoBucket(foto.url, "fotos-casas");
+    if (!foto.url.startsWith("https://") || !caminho || !caminho.startsWith(`${casaId}/`)) {
+      return { erro: "Endereço de foto inválido." };
+    }
+  }
+
+  const supabase = await createClient();
+  const { data: existentes } = await supabase
+    .from("foto_ilpi")
+    .select("ordem")
+    .eq("id_ilpi", casaId)
+    .order("ordem", { ascending: false })
+    .limit(1);
+
+  const ultimaOrdem =
+    existentes && existentes.length > 0 ? Number(existentes[0].ordem ?? -1) : -1;
+
+  const linhas = fotos.map((f, i) => ({
+    id_ilpi: casaId,
+    url: f.url,
+    legenda: f.legenda?.trim().slice(0, 160) || null,
+    ordem: ultimaOrdem + 1 + i,
+  }));
+
+  const { error } = await supabase.from("foto_ilpi").insert(linhas);
+  if (error) return { erro: mensagemErro(error) };
+
+  await revalidarFotosCasa(supabase, casaId);
+  return {
+    ok: fotos.length === 1 ? "Foto adicionada." : `${fotos.length} fotos adicionadas.`,
+  };
+}
+
+export async function atualizarLegendaFoto(
+  fotoId: string,
+  casaId: string,
+  legenda: string,
+): Promise<{ erro?: string; ok?: string }> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+  if (!UUID_RE.test(fotoId) || !UUID_RE.test(casaId)) return { erro: "Foto não encontrada." };
+
+  const limpa = legenda.trim().slice(0, 160) || null;
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("foto_ilpi")
+    .update({ legenda: limpa })
+    .eq("id_foto", fotoId)
+    .eq("id_ilpi", casaId)
+    .select("id_foto");
+
+  if (error) return { erro: mensagemErro(error) };
+  if (!data || data.length === 0) return { erro: "Sem permissão para editar esta foto." };
+
+  await revalidarFotosCasa(supabase, casaId);
+  return { ok: "Legenda salva." };
+}
+
+export async function definirCapaCasa(
+  fotoId: string,
+  casaId: string,
+): Promise<{ erro?: string; ok?: string }> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+  if (!UUID_RE.test(fotoId) || !UUID_RE.test(casaId)) return { erro: "Foto não encontrada." };
+
+  const supabase = await createClient();
+  const { data: lista, error } = await supabase
+    .from("foto_ilpi")
+    .select("id_foto")
+    .eq("id_ilpi", casaId)
+    .order("ordem", { ascending: true });
+
+  if (error) return { erro: mensagemErro(error) };
+  const ids = (lista ?? []).map((f) => f.id_foto as string);
+  if (!ids.includes(fotoId)) return { erro: "Foto não encontrada." };
+
+  const novaOrdem = [fotoId, ...ids.filter((id) => id !== fotoId)];
+  const resultados = await Promise.all(
+    novaOrdem.map((id, ordem) =>
+      supabase
+        .from("foto_ilpi")
+        .update({ ordem })
+        .eq("id_foto", id)
+        .eq("id_ilpi", casaId),
+    ),
+  );
+  const falhou = resultados.find((r) => r.error);
+  if (falhou?.error) return { erro: mensagemErro(falhou.error) };
+
+  await revalidarFotosCasa(supabase, casaId);
+  return { ok: "Foto definida como capa." };
+}
+
+export async function reordenarFotoCasa(
+  fotoId: string,
+  casaId: string,
+  direcao: "anterior" | "proxima",
+): Promise<{ erro?: string }> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+  if (!UUID_RE.test(fotoId) || !UUID_RE.test(casaId)) return { erro: "Foto não encontrada." };
+
+  const supabase = await createClient();
+  const { data: lista, error } = await supabase
+    .from("foto_ilpi")
+    .select("id_foto")
+    .eq("id_ilpi", casaId)
+    .order("ordem", { ascending: true });
+
+  if (error) return { erro: mensagemErro(error) };
+  const ids = (lista ?? []).map((f) => f.id_foto as string);
+  const idx = ids.indexOf(fotoId);
+  if (idx === -1) return { erro: "Foto não encontrada." };
+
+  const destino = direcao === "anterior" ? idx - 1 : idx + 1;
+  if (destino < 0 || destino >= ids.length) return {};
+
+  const novaOrdem = [...ids];
+  [novaOrdem[idx], novaOrdem[destino]] = [novaOrdem[destino], novaOrdem[idx]];
+
+  const resultados = await Promise.all(
+    novaOrdem.map((id, ordem) =>
+      supabase
+        .from("foto_ilpi")
+        .update({ ordem })
+        .eq("id_foto", id)
+        .eq("id_ilpi", casaId),
+    ),
+  );
+  const falhou = resultados.find((r) => r.error);
+  if (falhou?.error) return { erro: mensagemErro(falhou.error) };
+
+  await revalidarFotosCasa(supabase, casaId);
+  return {};
+}
+
+export async function removerFotoCasa(
+  fotoId: string,
+  casaId: string,
+): Promise<{ erro?: string; ok?: string }> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+  if (!UUID_RE.test(fotoId) || !UUID_RE.test(casaId)) return { erro: "Foto não encontrada." };
+
+  const supabase = await createClient();
+  const { data: alvo } = await supabase
+    .from("foto_ilpi")
+    .select("url")
+    .eq("id_foto", fotoId)
+    .eq("id_ilpi", casaId)
+    .maybeSingle();
+
+  if (!alvo) return { erro: "Foto não encontrada." };
+
+  const { data, error } = await supabase
+    .from("foto_ilpi")
+    .delete()
+    .eq("id_foto", fotoId)
+    .eq("id_ilpi", casaId)
+    .select("id_foto");
+
+  if (error) return { erro: mensagemErro(error) };
+  if (!data || data.length === 0) return { erro: "Sem permissão para remover esta foto." };
+
+  const caminho = extrairCaminhoBucket(String(alvo.url ?? ""), "fotos-casas");
+  if (caminho && caminho.startsWith(`${casaId}/`)) {
+    await supabase.storage.from("fotos-casas").remove([caminho]);
+  }
+
+  await revalidarFotosCasa(supabase, casaId);
+  return { ok: "Foto removida." };
 }

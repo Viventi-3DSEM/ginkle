@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import CasaForm, { type ValoresCasa } from "@/components/painel/CasaForm";
+import GerenciadorFotosCasa from "@/components/painel/GerenciadorFotosCasa";
 import { atualizarCasa } from "@/lib/painel/actions";
 import { casaDoGestor } from "@/lib/painel/dados";
 
@@ -30,14 +31,23 @@ export default async function EditarCasaPage({ params }: Props) {
   };
 
   return (
-    <CasaForm
-      acao={atualizarCasa}
-      idCasa={casa.id}
-      valores={valores}
-      titulo="Editar casa"
-      subtitulo="Atualize as informações da instituição."
-      rotulo="Salvar alterações"
-      voltarPara={`/gerente/casas/${casa.id}`}
-    />
+    <div className="space-y-8">
+      <CasaForm
+        acao={atualizarCasa}
+        idCasa={casa.id}
+        valores={valores}
+        titulo="Editar casa"
+        subtitulo="Atualize as informações da instituição."
+        rotulo="Salvar alterações"
+        voltarPara={`/gerente/casas/${casa.id}`}
+      />
+
+      <section className="mx-auto w-full max-w-3xl rounded-sm border border-border bg-card p-5 sm:p-7">
+        <h2 className="font-heading text-lg font-semibold">Fotos da casa</h2>
+        <div className="mt-4">
+          <GerenciadorFotosCasa casaId={casa.id} fotos={casa.fotos} />
+        </div>
+      </section>
+    </div>
   );
 }
