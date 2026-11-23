@@ -19,8 +19,9 @@ No SQL Editor do Supabase, rodar **um arquivo por vez, nesta ordem**:
 10. `migrations/0010_corrige_rls.sql` — corrige o isolamento entre casas e a linha do tempo do familiar
 11. `migrations/0011_limpa_rls_grants.sql` — vazamento de casa em rascunho, insert direto de casa e EXECUTE das funções
 12. `migrations/0012_painel_gestor.sql` — leitura de solicitantes/assinantes/colegas inativos, RPCs por e-mail, financeiro do gestor e auditoria por casa
-13. `seed.sql` — as 8 casas do protótipo
-14. `seed_fotos_planos.sql` — fotos e planos dessas casas
+13. `migrations/0013_fotos_storage.sql` — coluna `usuario.avatar_url`, buckets públicos (`fotos-casas`, `avatares`) e policies de Storage por pasta
+14. `seed.sql` — as 8 casas do protótipo
+15. `seed_fotos_planos.sql` — fotos e planos dessas casas
 
 Todos são idempotentes: pode rodar de novo sem duplicar.
 
@@ -162,7 +163,7 @@ ficam:
   (`publicado` / `pode_ver_residente`) e devolvem só colunas seguras; trocar por
   `security_invoker` quebraria a feature, não melhoraria a segurança.
 - `authenticated_security_definer_function_executable` nos helpers (`eh_equipe`,
-  `eh_gestor`, `eh_familiar_de`, `eh_familiar_da_casa`, `eh_assinante_do_plano`,
+  `eh_gestor`, `eh_gestor_da_pasta`, `eh_familiar_de`, `eh_familiar_da_casa`, `eh_assinante_do_plano`,
   `pode_ver_residente`, `eh_meu_vinculo`, `meu_cargo`, `cargo_na_ilpi`) e nas
   RPCs (`criar_ilpi`, `vincular_equipe_por_email`, `vincular_familiar_por_email`)
   — a expressão de uma policy roda como **quem consulta**, então `authenticated`
