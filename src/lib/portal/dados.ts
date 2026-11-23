@@ -696,3 +696,433 @@ export const residenteDoFamiliar = cache(async (id: string): Promise<ResidenteDe
     registros: linhasRegistros.map((item) => mapearRegistro(item, r.nome)),
   };
 });
+
+// ---- Financeiro (informativo) ----------------------------------------------
+
+export type FaturaFamiliar = {
+  id: string;
+  assinaturaId: string;
+  valor: number;
+  vencimento: string;
+  pagamento: string | null;
+  status: string;
+};
+
+export type AssinaturaFamiliar = {
+  id: string;
+  status: string;
+  inicio: string;
+  fim: string | null;
+  planoNome: string;
+  planoValor: number;
+  planoDescricao: string | null;
+  casaId: string;
+  casaNome: string;
+  casaCidade: string;
+  casaUf: string;
+  casaTelefone: string;
+  casaEmail: string;
+  faturas: FaturaFamiliar[];
+};
+
+export type FinanceiroDoFamiliar = {
+  assinaturas: AssinaturaFamiliar[];
+  resumo: {
+    assinaturasAtivas: number;
+    mensalidadeAtiva: number;
+    faturasEmAberto: number;
+    valorEmAberto: number;
+    faturasPagas: number;
+  };
+};
+
+export async function financeiroDoFamiliar(): Promise<FinanceiroDoFamiliar> {
+  const vazio: FinanceiroDoFamiliar = {
+    assinaturas: [],
+    resumo: {
+      assinaturasAtivas: 0,
+      mensalidadeAtiva: 0,
+      faturasEmAberto: 0,
+      valorEmAberto: 0,
+      faturasPagas: 0,
+    },
+  };
+
+  const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
+  if (!supabase || !user) return vazio;
+
+  const { data: assData } = await supabase
+    .from("assinatura")
+    .select(
+      "id_assinatura, id_plano, status, data_inicio, data_fim, plano(nome, valor, descricao, id_ilpi, ilpi(nome, cidade, uf, telefone, email))",
+    )
+    .eq("id_usuario", user.id)
+    .order("data_inicio", { ascending: false });
+
+  type LinhaAss = {
+    id_assinatura: string;
+    id_plano: string;
+    status: string;
+    data_inicio: string;
+    data_fim: string | null;
+    plano: {
+      nome: string;
+      valor: number | string;
+      descricao: string | null;
+      id_ilpi: string;
+      ilpi: {
+        nome: string;
+        cidade: string;
+        uf: string;
+        telefone: string;
+        email: string;
+      } | null;
+    } | null;
+  };
+
+  const linhas = (assData ?? []) as unknown as LinhaAss[];
+  if (linhas.length === 0) return vazio;
+
+  const idsAss = linhas.map((a) => a.id_assinatura);
+  const { data: fatData } = await supabase
+    .from("faturamento")
+    .select("id_faturamento, id_assinatura, valor, data_vencimento, data_pagamento, status_pagamento")
+    .in("id_assinatura", idsAss)
+    .order("data_vencimento", { ascending: false });
+
+  const faturasPorAss = new Map<string, FaturaFamiliar[]>();
+  let faturasEmAberto = 0;
+  let valorEmAberto = 0;
+  let faturasPagas = 0;
+
+  for (const f of (fatData ?? []) as unknown as {
+    id_faturamento: string;
+    id_assinatura: string;
+    valor: number | string;
+    data_vencimento: string;
+    data_pagamento: string | null;
+    status_pagamento: string;
+  }[]) {
+    const val = Number(f.valor);
+    const item: FaturaFamiliar = {
+      id: f.id_faturamento,
+      assinaturaId: f.id_assinatura,
+      valor: Number.isFinite(val) ? val : 0,
+      vencimento: f.data_vencimento,
+      pagamento: f.data_pagamento,
+      status: f.status_pagamento,
+    };
+    const lista = faturasPorAss.get(f.id_assinatura) ?? [];
+    lista.push(item);
+    faturasPorAss.set(f.id_assinatura, lista);
+
+    if (f.status_pagamento === "PENDENTE" || f.status_pagamento === "ATRASADO") {
+      faturasEmAberto += 1;
+      valorEmAberto += item.valor;
+    } else if (f.status_pagamento === "PAGO") {
+      faturasPagas += 1;
+    }
+  }
+
+  let assinaturasAtivas = 0;
+  let mensalidadeAtiva = 0;
+
+  const assinaturas: AssinaturaFamiliar[] = linhas.map((a) => {
+    const valPlano = Number(a.plano?.valor ?? 0);
+    const valorNum = Number.isFinite(valPlano) ? valPlano : 0;
+    if (a.status === "ATIVA") {
+      assinaturasAtivas += 1;
+      mensalidadeAtiva += valorNum;
+    }
+    return {
+      id: a.id_assinatura,
+      status: a.status,
+      inicio: a.data_inicio,
+      fim: a.data_fim,
+      planoNome: a.plano?.nome ?? "Plano vinculado",
+      planoValor: valorNum,
+      planoDescricao: a.plano?.descricao ?? null,
+      casaId: a.plano?.id_ilpi ?? "",
+      casaNome: a.plano?.ilpi?.nome ?? "Instituição vinculada",
+      casaCidade: a.plano?.ilpi?.cidade ?? "",
+      casaUf: a.plano?.ilpi?.uf ?? "",
+      casaTelefone: a.plano?.ilpi?.telefone ?? "",
+      casaEmail: a.plano?.ilpi?.email ?? "",
+      faturas: faturasPorAss.get(a.id_assinatura) ?? [],
+    };
+  });
+
+  return {
+    assinaturas,
+    resumo: {
+      assinaturasAtivas,
+      mensalidadeAtiva,
+      faturasEmAberto,
+      valorEmAberto,
+      faturasPagas,
+    },
+  };
+}
+
+// ---- Avaliações do familiar ------------------------------------------------
+
+export type CasaParaAvaliar = {
+  casaId: string;
+  slug: string;
+  nome: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  publicado: boolean;
+  capaUrl: string | null;
+  residentesNomes: string[];
+  avaliacao: {
+    id: string;
+    nota: number;
+    comentario: string;
+    data: string;
+  } | null;
+};
+
+export async function avaliacoesDoFamiliar(): Promise<CasaParaAvaliar[]> {
+  const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
+  if (!supabase || !user) return [];
+
+  const [vinculosRes, minhasAvRes] = await Promise.all([
+    supabase
+      .from("familiar_residente")
+      .select("id_residente")
+      .eq("id_usuario", user.id),
+    supabase
+      .from("avaliacao")
+      .select("id_avaliacao, id_ilpi, nota, comentario, data_avaliacao")
+      .eq("id_usuario", user.id),
+  ]);
+
+  const idsRes = ((vinculosRes.data ?? []) as unknown as { id_residente: string }[]).map(
+    (v) => v.id_residente,
+  );
+  if (idsRes.length === 0) return [];
+
+  const { data: resData } = await supabase
+    .from("residente")
+    .select("id_residente, id_ilpi, nome")
+    .in("id_residente", idsRes);
+
+  const residentes = (resData ?? []) as unknown as {
+    id_residente: string;
+    id_ilpi: string;
+    nome: string;
+  }[];
+  if (residentes.length === 0) return [];
+
+  const nomesPorCasa = new Map<string, string[]>();
+  for (const r of residentes) {
+    const lista = nomesPorCasa.get(r.id_ilpi) ?? [];
+    lista.push(r.nome);
+    nomesPorCasa.set(r.id_ilpi, lista);
+  }
+  const idsCasas = [...nomesPorCasa.keys()];
+
+  const [casasRes, fotosRes] = await Promise.all([
+    supabase
+      .from("ilpi")
+      .select("id_ilpi, slug, nome, bairro, cidade, uf, publicado")
+      .in("id_ilpi", idsCasas)
+      .order("nome", { ascending: true }),
+    supabase
+      .from("foto_ilpi")
+      .select("id_ilpi, url")
+      .in("id_ilpi", idsCasas)
+      .order("ordem", { ascending: true }),
+  ]);
+
+  const capaPorCasa = new Map<string, string>();
+  for (const f of (fotosRes.data ?? []) as unknown as { id_ilpi: string; url: string }[]) {
+    if (!capaPorCasa.has(f.id_ilpi)) capaPorCasa.set(f.id_ilpi, f.url);
+  }
+
+  const avPorCasa = new Map<
+    string,
+    { id: string; nota: number; comentario: string; data: string }
+  >();
+  for (const a of (minhasAvRes.data ?? []) as unknown as {
+    id_avaliacao: string;
+    id_ilpi: string;
+    nota: number;
+    comentario: string | null;
+    data_avaliacao: string;
+  }[]) {
+    avPorCasa.set(a.id_ilpi, {
+      id: a.id_avaliacao,
+      nota: Number(a.nota),
+      comentario: a.comentario ?? "",
+      data: a.data_avaliacao,
+    });
+  }
+
+  return ((casasRes.data ?? []) as unknown as {
+    id_ilpi: string;
+    slug: string;
+    nome: string;
+    bairro: string;
+    cidade: string;
+    uf: string;
+    publicado: boolean;
+  }[]).map((c) => ({
+    casaId: c.id_ilpi,
+    slug: c.slug,
+    nome: c.nome,
+    bairro: c.bairro,
+    cidade: c.cidade,
+    uf: c.uf,
+    publicado: Boolean(c.publicado),
+    capaUrl: capaPorCasa.get(c.id_ilpi) ?? null,
+    residentesNomes: nomesPorCasa.get(c.id_ilpi) ?? [],
+    avaliacao: avPorCasa.get(c.id_ilpi) ?? null,
+  }));
+}
+
+// ---- Chat / Suporte do familiar --------------------------------------------
+
+export type MensagemChat = {
+  id: string;
+  conversaId: string;
+  conteudo: string;
+  dataHora: string;
+  ehMinha: boolean;
+};
+
+export type ConversaFamiliar = {
+  id: string;
+  casaId: string;
+  casaNome: string;
+  casaCidade: string;
+  casaUf: string;
+  criadaEm: string;
+  mensagens: MensagemChat[];
+};
+
+export type CasaParaConversar = {
+  id: string;
+  nome: string;
+  cidade: string;
+  uf: string;
+};
+
+export type ChatDoFamiliar = {
+  conversas: ConversaFamiliar[];
+  casasDisponiveis: CasaParaConversar[];
+};
+
+export async function chatDoFamiliar(): Promise<ChatDoFamiliar> {
+  const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
+  if (!supabase || !user) return { conversas: [], casasDisponiveis: [] };
+
+  const [convRes, vincRes, adesoesRes] = await Promise.all([
+    supabase
+      .from("conversa")
+      .select("id_conversa, id_ilpi, data_criacao, ilpi(nome, cidade, uf)")
+      .eq("id_usuario", user.id)
+      .order("data_criacao", { ascending: false }),
+    supabase
+      .from("familiar_residente")
+      .select("residente(id_ilpi)")
+      .eq("id_usuario", user.id),
+    supabase
+      .from("adesao_ilpi")
+      .select("id_ilpi")
+      .eq("id_usuario", user.id)
+      .in("status", ["PENDENTE", "APROVADA"]),
+  ]);
+
+  const linhasConv = (convRes.data ?? []) as unknown as {
+    id_conversa: string;
+    id_ilpi: string;
+    data_criacao: string;
+    ilpi: { nome: string; cidade: string; uf: string } | null;
+  }[];
+
+  const idsConv = linhasConv.map((c) => c.id_conversa);
+  const mensagensPorConv = new Map<string, MensagemChat[]>();
+
+  if (idsConv.length > 0) {
+    const { data: msgData } = await supabase
+      .from("mensagem")
+      .select("id_mensagem, id_conversa, id_usuario, conteudo, data_hora")
+      .in("id_conversa", idsConv)
+      .order("data_hora", { ascending: true })
+      .limit(500);
+
+    for (const m of (msgData ?? []) as unknown as {
+      id_mensagem: string;
+      id_conversa: string;
+      id_usuario: string;
+      conteudo: string;
+      data_hora: string;
+    }[]) {
+      const lista = mensagensPorConv.get(m.id_conversa) ?? [];
+      lista.push({
+        id: m.id_mensagem,
+        conversaId: m.id_conversa,
+        conteudo: m.conteudo,
+        dataHora: m.data_hora,
+        ehMinha: m.id_usuario === user.id,
+      });
+      mensagensPorConv.set(m.id_conversa, lista);
+    }
+  }
+
+  const conversas: ConversaFamiliar[] = linhasConv
+    .map((c) => ({
+      id: c.id_conversa,
+      casaId: c.id_ilpi,
+      casaNome: c.ilpi?.nome ?? "Instituição",
+      casaCidade: c.ilpi?.cidade ?? "",
+      casaUf: c.ilpi?.uf ?? "",
+      criadaEm: c.data_criacao,
+      mensagens: mensagensPorConv.get(c.id_conversa) ?? [],
+    }))
+    .sort((a, b) => {
+      const ultA = a.mensagens[a.mensagens.length - 1]?.dataHora ?? a.criadaEm;
+      const ultB = b.mensagens[b.mensagens.length - 1]?.dataHora ?? b.criadaEm;
+      return ultB.localeCompare(ultA);
+    });
+
+  // Casas com as quais o familiar já tem relação (residente ou adesão) e ainda sem conversa
+  const idsJaComConversa = new Set(conversas.map((c) => c.casaId));
+  const idsCandidatas = new Set<string>();
+  for (const v of (vincRes.data ?? []) as unknown as { residente: { id_ilpi: string } | null }[]) {
+    if (v.residente?.id_ilpi && !idsJaComConversa.has(v.residente.id_ilpi)) {
+      idsCandidatas.add(v.residente.id_ilpi);
+    }
+  }
+  for (const a of (adesoesRes.data ?? []) as unknown as { id_ilpi: string }[]) {
+    if (a.id_ilpi && !idsJaComConversa.has(a.id_ilpi)) {
+      idsCandidatas.add(a.id_ilpi);
+    }
+  }
+
+  let casasDisponiveis: CasaParaConversar[] = [];
+  if (idsCandidatas.size > 0) {
+    const { data: casasData } = await supabase
+      .from("ilpi")
+      .select("id_ilpi, nome, cidade, uf")
+      .in("id_ilpi", [...idsCandidatas])
+      .order("nome", { ascending: true });
+
+    casasDisponiveis = ((casasData ?? []) as unknown as {
+      id_ilpi: string;
+      nome: string;
+      cidade: string;
+      uf: string;
+    }[]).map((c) => ({
+      id: c.id_ilpi,
+      nome: c.nome,
+      cidade: c.cidade,
+      uf: c.uf,
+    }));
+  }
+
+  return { conversas, casasDisponiveis };
+}

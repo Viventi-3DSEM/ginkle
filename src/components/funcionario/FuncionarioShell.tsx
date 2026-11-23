@@ -3,7 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useId, useRef } from "react";
 import {
+  CalendarClock,
   ClipboardList,
   ClipboardPlus,
   CloudOff,
@@ -11,10 +13,14 @@ import {
   History,
   LayoutDashboard,
   LogOut,
+  MessageSquare,
+  MoreHorizontal,
   RefreshCw,
   User,
+  UserCheck,
   Users,
   Wifi,
+  X,
 } from "lucide-react";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import LinkPendingHint from "@/components/nav/LinkPendingHint";
@@ -22,7 +28,7 @@ import { sair } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 import { OfflineProvider, useOffline } from "./OfflineProvider";
 
-const NAV = [
+const NAV_PRINCIPAL = [
   { href: "/funcionario", label: "Turno", curto: "Turno", Icone: ClipboardList, exato: true },
   {
     href: "/funcionario/residentes",
@@ -40,6 +46,30 @@ const NAV = [
     destaque: true,
   },
   {
+    href: "/funcionario/chat",
+    label: "Chat e suporte",
+    curto: "Chat",
+    Icone: MessageSquare,
+    exato: false,
+  },
+];
+
+const NAV_SECUNDARIO = [
+  {
+    href: "/funcionario/aprovacoes",
+    label: "Aprovações",
+    curto: "Aprovações",
+    Icone: UserCheck,
+    exato: false,
+  },
+  {
+    href: "/funcionario/escala",
+    label: "Minha escala",
+    curto: "Escala",
+    Icone: CalendarClock,
+    exato: false,
+  },
+  {
     href: "/funcionario/historico",
     label: "Histórico",
     curto: "Histórico",
@@ -54,6 +84,8 @@ const NAV = [
     exato: false,
   },
 ];
+
+const NAV_TODOS = [...NAV_PRINCIPAL, ...NAV_SECUNDARIO];
 
 type Props = {
   usuario: {
@@ -120,8 +152,56 @@ function StatusConexao({ compacto = false }: { compacto?: boolean }) {
 
 function ShellConteudo({ usuario, children }: Props) {
   const pathname = usePathname();
-  const ativo = (item: (typeof NAV)[number]) =>
+  const menuRef = useRef<HTMLDialogElement>(null);
+  const fecharBtnRef = useRef<HTMLButtonElement>(null);
+  const menuTituloId = useId();
+
+  const ativo = (item: (typeof NAV_TODOS)[number]) =>
     item.exato ? pathname === item.href : pathname.startsWith(item.href);
+
+  const secundarioAtivo = NAV_SECUNDARIO.some(ativo);
+
+  useEffect(() => {
+    const dialog = menuRef.current;
+    if (!dialog) return;
+
+    dialog.setAttribute("closedby", "any");
+    if ("closedBy" in HTMLDialogElement.prototype) return;
+
+    const fora = (e: PointerEvent) => {
+      const r = dialog.getBoundingClientRect();
+      return (
+        e.clientX < r.left ||
+        e.clientX > r.right ||
+        e.clientY < r.top ||
+        e.clientY > r.bottom
+      );
+    };
+
+    let pressionouFora = false;
+    const onDown = (e: PointerEvent) => {
+      pressionouFora = fora(e);
+    };
+    const onUp = (e: PointerEvent) => {
+      if (pressionouFora && fora(e)) dialog.close();
+      pressionouFora = false;
+    };
+
+    dialog.addEventListener("pointerdown", onDown);
+    dialog.addEventListener("pointerup", onUp);
+    return () => {
+      dialog.removeEventListener("pointerdown", onDown);
+      dialog.removeEventListener("pointerup", onUp);
+    };
+  }, []);
+
+  function abrirMenuMobile() {
+    const dialog = menuRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      fecharBtnRef.current?.focus();
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background md:flex">
@@ -145,8 +225,11 @@ function ShellConteudo({ usuario, children }: Props) {
           <StatusConexao />
         </div>
 
-        <nav aria-label="Painel do funcionário" className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-3">
-          {NAV.map((item) => (
+        <nav
+          aria-label="Painel do funcionário"
+          className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-3"
+        >
+          {NAV_TODOS.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -155,7 +238,7 @@ function ShellConteudo({ usuario, children }: Props) {
                 "flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium transition-colors",
                 ativo(item)
                   ? "bg-secondary text-brand-strong"
-                  : item.destaque
+                  : "destaque" in item && item.destaque
                     ? "bg-primary text-primary-foreground hover:opacity-90"
                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
               )}
@@ -237,17 +320,27 @@ function ShellConteudo({ usuario, children }: Props) {
             <Image src="/ginkle-mark.svg" alt="" width={24} height={24} className="h-6 w-6" />
             <span className="font-heading text-base font-bold tracking-tight">Ginkle</span>
           </Link>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <StatusConexao compacto />
-            {usuario.ehGestor ? (
-              <Link
-                href="/gerente"
-                aria-label="Ir para o painel do gestor"
-                className="inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              >
-                <LayoutDashboard className="size-4" aria-hidden="true" />
-              </Link>
-            ) : null}
+            <Link
+              href="/funcionario/perfil"
+              aria-label={`Meu perfil (${usuario.nome})`}
+              className="inline-flex size-9 items-center justify-center rounded-sm transition-colors hover:bg-secondary"
+            >
+              {usuario.avatarUrl ? (
+                <Image
+                  src={usuario.avatarUrl}
+                  alt=""
+                  width={26}
+                  height={26}
+                  className="size-[26px] rounded-full object-cover"
+                />
+              ) : (
+                <span className="grid size-[26px] place-items-center rounded-full bg-brand-soft font-heading text-[0.65rem] font-bold text-brand-strong">
+                  {usuario.nome.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+            </Link>
             <ThemeToggle />
             <form action={sair}>
               <button
@@ -274,7 +367,7 @@ function ShellConteudo({ usuario, children }: Props) {
         aria-label="Atalhos do turno"
         className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
       >
-        {NAV.map((item) => (
+        {NAV_PRINCIPAL.map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -293,7 +386,86 @@ function ShellConteudo({ usuario, children }: Props) {
             <span className="max-w-full truncate">{item.curto}</span>
           </Link>
         ))}
+
+        <button
+          type="button"
+          onClick={abrirMenuMobile}
+          aria-haspopup="dialog"
+          className={cn(
+            "flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[0.68rem] font-medium transition-colors",
+            secundarioAtivo ? "text-brand-strong" : "text-muted-foreground",
+          )}
+        >
+          <MoreHorizontal className="size-5" aria-hidden="true" />
+          <span className="max-w-full truncate">Mais</span>
+        </button>
       </nav>
+
+      <dialog
+        ref={menuRef}
+        aria-labelledby={menuTituloId}
+        onClose={(e) => {
+          e.currentTarget.returnValue = "";
+        }}
+        className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-sm border border-border bg-card p-0 text-foreground shadow-xl"
+      >
+        <div className="p-5">
+          <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
+            <h2 id={menuTituloId} className="font-heading text-base font-semibold">
+              Mais opções
+            </h2>
+            <button
+              ref={fecharBtnRef}
+              type="button"
+              onClick={() => menuRef.current?.close()}
+              aria-label="Fechar menu"
+              className="inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-col gap-1">
+            {NAV_SECUNDARIO.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => menuRef.current?.close()}
+                aria-current={ativo(item) ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-3 rounded-sm px-3 py-3 text-sm font-medium transition-colors",
+                  ativo(item)
+                    ? "bg-secondary text-brand-strong"
+                    : "text-foreground hover:bg-secondary/60",
+                )}
+              >
+                <item.Icone className="size-5 shrink-0" aria-hidden="true" />
+                {item.label}
+              </Link>
+            ))}
+
+            {usuario.ehGestor ? (
+              <Link
+                href="/gerente"
+                onClick={() => menuRef.current?.close()}
+                className="flex items-center gap-3 rounded-sm px-3 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary/60"
+              >
+                <LayoutDashboard className="size-5 shrink-0" aria-hidden="true" />
+                Painel do gestor
+              </Link>
+            ) : null}
+
+            <Link
+              href="/"
+              onClick={() => menuRef.current?.close()}
+              className="flex items-center gap-3 rounded-sm px-3 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+            >
+              <Globe className="size-5 shrink-0" aria-hidden="true" />
+              Ver o site
+            </Link>
+          </div>
+        </div>
+      </dialog>
     </div>
   );
 }

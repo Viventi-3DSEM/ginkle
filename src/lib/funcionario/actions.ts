@@ -167,3 +167,182 @@ export async function registrarCuidado(
 
   return { ok: true };
 }
+
+export async function responderSolicitacaoEquipe(entrada: {
+  idAdesao: string;
+  decisao: "APROVADA" | "RECUSADA";
+  residenteId?: string;
+  parentesco?: string;
+  responsavelPrincipal?: boolean;
+}): Promise<{ ok?: string; erro?: string }> {
+  if (!supabaseConfigurado()) return { erro: "O servidor não está disponível no momento." };
+
+  const idAdesao = String(entrada.idAdesao ?? "").trim();
+  const decisao = entrada.decisao;
+  if (!UUID_RE.test(idAdesao)) return { erro: "Solicitação não encontrada." };
+  if (decisao !== "APROVADA" && decisao !== "RECUSADA") return { erro: "Decisão inválida." };
+
+  const residenteId = String(entrada.residenteId ?? "").trim();
+  const parentesco = String(entrada.parentesco ?? "").trim();
+
+  if (decisao === "APROVADA" && residenteId) {
+    if (!UUID_RE.test(residenteId)) return { erro: "Residente inválido para vínculo." };
+    if (parentesco.length < 2 || parentesco.length > 60) {
+      return { erro: "Informe o parentesco (entre 2 e 60 caracteres) para vincular ao residente." };
+    }
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { erro: "Sua sessão expirou. Entre novamente." };
+
+  const { data: adesao } = await supabase
+    .from("adesao_ilpi")
+    .select("id_adesao, id_ilpi, id_usuario, status")
+    .eq("id_adesao", idAdesao)
+    .maybeSingle();
+
+  if (!adesao) return { erro: "Solicitação não encontrada ou sem permissão." };
+  if (adesao.status !== "PENDENTE") {
+    return { erro: "Esta solicitação já foi respondida anteriormente." };
+  }
+
+  const { error: erroUpd } = await supabase
+    .from("adesao_ilpi")
+    .update({
+      status: decisao,
+      data_resposta: new Date().toISOString(),
+    })
+    .eq("id_adesao", idAdesao)
+    .eq("status", "PENDENTE");
+
+  if (erroUpd) {
+    if (erroUpd.code === "42501") {
+      return { erro: "Você não tem permissão para responder solicitações desta casa." };
+    }
+    return { erro: "Não foi possível atualizar a solicitação agora." };
+  }
+
+  let vinculou = false;
+  if (decisao === "APROVADA" && residenteId) {
+    const { error: erroVinc } = await supabase.from("familiar_residente").upsert(
+      {
+        id_usuario: adesao.id_usuario as string,
+        id_residente: residenteId,
+        parentesco,
+        responsavel_principal: Boolean(entrada.responsavelPrincipal),
+      },
+      { onConflict: "id_usuario,id_residente" },
+    );
+
+    if (!erroVinc) vinculou = true;
+  }
+
+  revalidatePath("/funcionario");
+  revalidatePath("/funcionario/aprovacoes");
+  revalidatePath("/funcionario/residentes");
+  revalidatePath("/gerente");
+  revalidatePath("/gerente/residentes");
+  revalidatePath(`/gerente/casas/${adesao.id_ilpi as string}`);
+  revalidatePath("/cliente");
+  revalidatePath("/cliente/solicitacoes");
+  revalidatePath("/cliente/residentes");
+
+  if (decisao === "RECUSADA") return { ok: "Solicitação recusada." };
+  return {
+    ok: vinculou
+      ? "Solicitação aprovada e familiar vinculado ao residente."
+      : "Solicitação aprovada. O vínculo com o residente pode ser feito na aba Residentes.",
+  };
+}
+
+export async function iniciarConversaEquipe(
+  casaId: string,
+  familiarId: string,
+): Promise<{ ok?: true; conversaId?: string; erro?: string }> {
+  if (!supabaseConfigurado()) return { erro: "O servidor não está disponível no momento." };
+  if (!UUID_RE.test(casaId) || !UUID_RE.test(familiarId)) {
+    return { erro: "Dados inválidos para iniciar a conversa." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { erro: "Sua sessão expirou. Entre novamente." };
+
+  const { data: existente } = await supabase
+    .from("conversa")
+    .select("id_conversa")
+    .eq("id_ilpi", casaId)
+    .eq("id_usuario", familiarId)
+    .maybeSingle();
+
+  if (existente?.id_conversa) {
+    return { ok: true, conversaId: existente.id_conversa as string };
+  }
+
+  const { data: criada, error } = await supabase
+    .from("conversa")
+    .insert({ id_ilpi: casaId, id_usuario: familiarId })
+    .select("id_conversa")
+    .maybeSingle();
+
+  if (error || !criada) {
+    if (error?.code === "42501") {
+      return {
+        erro: "Para a equipe iniciar novas conversas, aplique a migration 0015 no Supabase (familiares já podem iniciar normalmente).",
+      };
+    }
+    return { erro: "Não foi possível abrir a conversa agora." };
+  }
+
+  revalidatePath("/funcionario/chat");
+  revalidatePath("/cliente/chat");
+  return { ok: true, conversaId: criada.id_conversa as string };
+}
+
+export async function enviarMensagemEquipe(
+  conversaId: string,
+  conteudoBruto: string,
+): Promise<{ ok?: true; mensagemId?: string; dataHora?: string; erro?: string }> {
+  if (!supabaseConfigurado()) return { erro: "O servidor não está disponível no momento." };
+  if (!UUID_RE.test(conversaId)) return { erro: "Conversa inválida." };
+
+  const conteudo = conteudoBruto.trim();
+  if (conteudo.length === 0) return { erro: "Digite uma mensagem antes de enviar." };
+  if (conteudo.length > 2000) return { erro: "A mensagem pode ter no máximo 2000 caracteres." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { erro: "Sua sessão expirou. Entre novamente." };
+
+  const { data, error } = await supabase
+    .from("mensagem")
+    .insert({
+      id_conversa: conversaId,
+      id_usuario: user.id,
+      conteudo,
+    })
+    .select("id_mensagem, data_hora")
+    .maybeSingle();
+
+  if (error || !data) {
+    if (error?.code === "42501") {
+      return { erro: "Você não tem permissão para responder esta conversa." };
+    }
+    return { erro: "Não foi possível enviar a mensagem agora." };
+  }
+
+  revalidatePath("/funcionario/chat");
+  revalidatePath("/cliente/chat");
+  return {
+    ok: true,
+    mensagemId: data.id_mensagem as string,
+    dataHora: data.data_hora as string,
+  };
+}

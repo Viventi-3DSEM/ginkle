@@ -2,7 +2,16 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Building2, ExternalLink, Mail, MapPin, Phone, ShieldCheck } from "lucide-react";
+import {
+  Building2,
+  ExternalLink,
+  Mail,
+  MapPin,
+  MessageSquare,
+  Phone,
+  ShieldCheck,
+  Star,
+} from "lucide-react";
 import TimelineResidente from "@/components/portal/TimelineResidente";
 import { residenteDoFamiliar } from "@/lib/portal/dados";
 import {
@@ -246,18 +255,34 @@ export default async function ResidenteDetalhePage({ params }: Props) {
                 </div>
               </dl>
 
-              {residente.casa.publicado ? (
-                <div className="pt-1">
-                  <Link
-                    href={`/casas/${residente.casa.slug}`}
-                    target="_blank"
-                    className="inline-flex items-center gap-2 rounded-sm border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary"
-                  >
-                    <ExternalLink className="size-4" aria-hidden="true" />
-                    Ver página no diretório
-                  </Link>
-                </div>
-              ) : null}
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Link
+                  href={`/cliente/chat?casa=${residente.casa.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                >
+                  <MessageSquare className="size-3.5" aria-hidden="true" />
+                  Falar com a casa
+                </Link>
+                {residente.casa.publicado ? (
+                  <>
+                    <Link
+                      href="/cliente/avaliacoes"
+                      className="inline-flex items-center gap-1.5 rounded-sm border border-border px-3.5 py-2 text-xs font-medium transition-colors hover:bg-secondary"
+                    >
+                      <Star className="size-3.5 text-brand-strong" aria-hidden="true" />
+                      Avaliar casa
+                    </Link>
+                    <Link
+                      href={`/casas/${residente.casa.slug}`}
+                      target="_blank"
+                      className="inline-flex items-center gap-1.5 rounded-sm border border-border px-3.5 py-2 text-xs font-medium transition-colors hover:bg-secondary"
+                    >
+                      <ExternalLink className="size-3.5" aria-hidden="true" />
+                      Ver página no diretório
+                    </Link>
+                  </>
+                ) : null}
+              </div>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">

@@ -733,3 +733,379 @@ export async function historicoDoFuncionario(): Promise<HistoricoDoFuncionario> 
 
   return { casas: usuario.vinculos, registros, limitado };
 }
+
+// ---- Central de aprovações (adesao_ilpi pela equipe) -----------------------
+
+export type SolicitacaoEquipe = {
+  id: string;
+  casaId: string;
+  casaNome: string;
+  usuarioId: string;
+  solicitanteNome: string;
+  solicitanteEmail: string;
+  solicitanteTelefone: string | null;
+  status: string;
+  quando: string;
+  respondidaEm: string | null;
+};
+
+export type AprovacoesDoFuncionario = {
+  casas: VinculoOperacional[];
+  solicitacoes: SolicitacaoEquipe[];
+  residentesAtivos: { id: string; casaId: string; nome: string }[];
+};
+
+export async function aprovacoesDoFuncionario(): Promise<AprovacoesDoFuncionario> {
+  const [supabase, usuario] = await Promise.all([createClientOpcional(), usuarioDoFuncionario()]);
+  if (!supabase || !usuario) {
+    return { casas: [], solicitacoes: [], residentesAtivos: [] };
+  }
+
+  const casaPorId = new Map(usuario.vinculos.map((v) => [v.casaId, v]));
+  const idsCasas = [...casaPorId.keys()];
+
+  const [adesoesRes, residentesRes] = await Promise.all([
+    supabase
+      .from("adesao_ilpi")
+      .select(
+        "id_adesao, id_ilpi, id_usuario, status, data_solicitacao, data_resposta, usuario(nome, email, telefone)",
+      )
+      .in("id_ilpi", idsCasas)
+      .order("data_solicitacao", { ascending: false })
+      .limit(100),
+    supabase
+      .from("residente")
+      .select("id_residente, id_ilpi, nome")
+      .in("id_ilpi", idsCasas)
+      .eq("status", "ATIVO")
+      .order("nome", { ascending: true }),
+  ]);
+
+  const solicitacoes: SolicitacaoEquipe[] = ((adesoesRes.data ?? []) as unknown as {
+    id_adesao: string;
+    id_ilpi: string;
+    id_usuario: string;
+    status: string;
+    data_solicitacao: string;
+    data_resposta: string | null;
+    usuario: { nome: string; email: string; telefone: string | null } | null;
+  }[])
+    .filter((a) => casaPorId.has(a.id_ilpi))
+    .map((a) => ({
+      id: a.id_adesao,
+      casaId: a.id_ilpi,
+      casaNome: casaPorId.get(a.id_ilpi)!.casaNome,
+      usuarioId: a.id_usuario,
+      solicitanteNome: a.usuario?.nome ?? "Familiar",
+      solicitanteEmail: a.usuario?.email ?? "",
+      solicitanteTelefone: a.usuario?.telefone ?? null,
+      status: a.status,
+      quando: a.data_solicitacao,
+      respondidaEm: a.data_resposta,
+    }));
+
+  const residentesAtivos = ((residentesRes.data ?? []) as unknown as {
+    id_residente: string;
+    id_ilpi: string;
+    nome: string;
+  }[]).map((r) => ({
+    id: r.id_residente,
+    casaId: r.id_ilpi,
+    nome: r.nome,
+  }));
+
+  return { casas: usuario.vinculos, solicitacoes, residentesAtivos };
+}
+
+// ---- Chat / Suporte da equipe ----------------------------------------------
+
+export type MensagemEquipeChat = {
+  id: string;
+  conversaId: string;
+  conteudo: string;
+  dataHora: string;
+  ehMinha: boolean;
+  ehFamiliar: boolean;
+  autorNome: string;
+};
+
+export type ConversaEquipe = {
+  id: string;
+  casaId: string;
+  casaNome: string;
+  familiarId: string;
+  familiarNome: string;
+  familiarEmail: string;
+  familiarTelefone: string | null;
+  criadaEm: string;
+  mensagens: MensagemEquipeChat[];
+};
+
+export type ContatoDisponivelChat = {
+  casaId: string;
+  casaNome: string;
+  usuarioId: string;
+  nome: string;
+  email: string;
+  origem: "Familiar" | "Solicitante";
+};
+
+export type ChatDaEquipe = {
+  casas: VinculoOperacional[];
+  conversas: ConversaEquipe[];
+  contatosDisponiveis: ContatoDisponivelChat[];
+};
+
+export async function chatDaEquipe(): Promise<ChatDaEquipe> {
+  const [supabase, usuario] = await Promise.all([createClientOpcional(), usuarioDoFuncionario()]);
+  if (!supabase || !usuario) return { casas: [], conversas: [], contatosDisponiveis: [] };
+
+  const casaPorId = new Map(usuario.vinculos.map((v) => [v.casaId, v]));
+  const idsCasas = [...casaPorId.keys()];
+
+  const [convRes, equipeRes, residentesRes, adesoesRes] = await Promise.all([
+    supabase
+      .from("conversa")
+      .select("id_conversa, id_ilpi, id_usuario, data_criacao, usuario(nome, email, telefone)")
+      .in("id_ilpi", idsCasas)
+      .order("data_criacao", { ascending: false }),
+    supabase
+      .from("vinculo_ilpi")
+      .select("id_usuario, usuario(nome)")
+      .in("id_ilpi", idsCasas),
+    supabase
+      .from("residente")
+      .select("id_residente, id_ilpi")
+      .in("id_ilpi", idsCasas),
+    supabase
+      .from("adesao_ilpi")
+      .select("id_ilpi, id_usuario, usuario(nome, email)")
+      .in("id_ilpi", idsCasas)
+      .in("status", ["PENDENTE", "APROVADA"]),
+  ]);
+
+  const nomeEquipePorUsuario = new Map<string, string>();
+  for (const e of (equipeRes.data ?? []) as unknown as {
+    id_usuario: string;
+    usuario: { nome: string } | null;
+  }[]) {
+    if (e.usuario?.nome) nomeEquipePorUsuario.set(e.id_usuario, e.usuario.nome);
+  }
+
+  const linhasConv = ((convRes.data ?? []) as unknown as {
+    id_conversa: string;
+    id_ilpi: string;
+    id_usuario: string;
+    data_criacao: string;
+    usuario: { nome: string; email: string; telefone: string | null } | null;
+  }[]).filter((c) => casaPorId.has(c.id_ilpi));
+
+  const idsConv = linhasConv.map((c) => c.id_conversa);
+  const convPorId = new Map(linhasConv.map((c) => [c.id_conversa, c]));
+  const mensagensPorConv = new Map<string, MensagemEquipeChat[]>();
+
+  if (idsConv.length > 0) {
+    const { data: msgData } = await supabase
+      .from("mensagem")
+      .select("id_mensagem, id_conversa, id_usuario, conteudo, data_hora")
+      .in("id_conversa", idsConv)
+      .order("data_hora", { ascending: true })
+      .limit(500);
+
+    for (const m of (msgData ?? []) as unknown as {
+      id_mensagem: string;
+      id_conversa: string;
+      id_usuario: string;
+      conteudo: string;
+      data_hora: string;
+    }[]) {
+      const conv = convPorId.get(m.id_conversa);
+      if (!conv) continue;
+      const ehFamiliar = m.id_usuario === conv.id_usuario;
+      const ehMinha = m.id_usuario === usuario.id;
+      const autorNome = ehMinha
+        ? "Você"
+        : ehFamiliar
+          ? (conv.usuario?.nome ?? "Familiar")
+          : (nomeEquipePorUsuario.get(m.id_usuario) ?? "Equipe");
+
+      const lista = mensagensPorConv.get(m.id_conversa) ?? [];
+      lista.push({
+        id: m.id_mensagem,
+        conversaId: m.id_conversa,
+        conteudo: m.conteudo,
+        dataHora: m.data_hora,
+        ehMinha,
+        ehFamiliar,
+        autorNome,
+      });
+      mensagensPorConv.set(m.id_conversa, lista);
+    }
+  }
+
+  const conversas: ConversaEquipe[] = linhasConv
+    .map((c) => ({
+      id: c.id_conversa,
+      casaId: c.id_ilpi,
+      casaNome: casaPorId.get(c.id_ilpi)!.casaNome,
+      familiarId: c.id_usuario,
+      familiarNome: c.usuario?.nome ?? "Familiar",
+      familiarEmail: c.usuario?.email ?? "",
+      familiarTelefone: c.usuario?.telefone ?? null,
+      criadaEm: c.data_criacao,
+      mensagens: mensagensPorConv.get(c.id_conversa) ?? [],
+    }))
+    .sort((a, b) => {
+      const ultA = a.mensagens[a.mensagens.length - 1]?.dataHora ?? a.criadaEm;
+      const ultB = b.mensagens[b.mensagens.length - 1]?.dataHora ?? b.criadaEm;
+      return ultB.localeCompare(ultA);
+    });
+
+  // Contatos (familiares ou solicitantes) ainda sem conversa aberta
+  const chavesConversa = new Set(conversas.map((c) => `${c.casaId}:${c.familiarId}`));
+  const contatosMap = new Map<string, ContatoDisponivelChat>();
+
+  const resLista = (residentesRes.data ?? []) as unknown as {
+    id_residente: string;
+    id_ilpi: string;
+  }[];
+  if (resLista.length > 0) {
+    const casaPorRes = new Map(resLista.map((r) => [r.id_residente, r.id_ilpi]));
+    const { data: famData } = await supabase
+      .from("familiar_residente")
+      .select("id_residente, id_usuario, usuario(nome, email)")
+      .in("id_residente", resLista.map((r) => r.id_residente));
+
+    for (const f of (famData ?? []) as unknown as {
+      id_residente: string;
+      id_usuario: string;
+      usuario: { nome: string; email: string } | null;
+    }[]) {
+      const casaId = casaPorRes.get(f.id_residente);
+      if (!casaId || !casaPorId.has(casaId) || !f.usuario) continue;
+      const chave = `${casaId}:${f.id_usuario}`;
+      if (chavesConversa.has(chave) || contatosMap.has(chave)) continue;
+      contatosMap.set(chave, {
+        casaId,
+        casaNome: casaPorId.get(casaId)!.casaNome,
+        usuarioId: f.id_usuario,
+        nome: f.usuario.nome,
+        email: f.usuario.email,
+        origem: "Familiar",
+      });
+    }
+  }
+
+  for (const a of (adesoesRes.data ?? []) as unknown as {
+    id_ilpi: string;
+    id_usuario: string;
+    usuario: { nome: string; email: string } | null;
+  }[]) {
+    if (!casaPorId.has(a.id_ilpi) || !a.usuario) continue;
+    const chave = `${a.id_ilpi}:${a.id_usuario}`;
+    if (chavesConversa.has(chave) || contatosMap.has(chave)) continue;
+    contatosMap.set(chave, {
+      casaId: a.id_ilpi,
+      casaNome: casaPorId.get(a.id_ilpi)!.casaNome,
+      usuarioId: a.id_usuario,
+      nome: a.usuario.nome,
+      email: a.usuario.email,
+      origem: "Solicitante",
+    });
+  }
+
+  const contatosDisponiveis = [...contatosMap.values()].sort((a, b) =>
+    a.nome.localeCompare(b.nome, "pt-BR"),
+  );
+
+  return { casas: usuario.vinculos, conversas, contatosDisponiveis };
+}
+
+// ---- Minha escala (escala_turno — migration 0015) --------------------------
+
+export type TurnoEscala = "MANHA" | "TARDE" | "NOITE" | "PLANTAO_12H" | "INTEGRAL";
+
+export type ItemEscala = {
+  id: string;
+  vinculoId: string;
+  casaId: string;
+  casaNome: string;
+  profissionalNome: string;
+  profissionalCargo: string;
+  ehMeu: boolean;
+  data: string;
+  horaInicio: string;
+  horaFim: string;
+  turno: TurnoEscala;
+  observacoes: string | null;
+};
+
+export type EscalaDoFuncionario = {
+  disponivel: boolean;
+  casas: VinculoOperacional[];
+  turnos: ItemEscala[];
+};
+
+export async function escalaDoFuncionario(): Promise<EscalaDoFuncionario> {
+  const [supabase, usuario] = await Promise.all([createClientOpcional(), usuarioDoFuncionario()]);
+  if (!supabase || !usuario) return { disponivel: true, casas: [], turnos: [] };
+
+  const casaPorId = new Map(usuario.vinculos.map((v) => [v.casaId, v]));
+  const idsCasas = [...casaPorId.keys()];
+  const meusVinculosIds = new Set(usuario.vinculos.map((v) => v.idVinculo));
+
+  const ha7d = chaveDia(new Date(Date.now() - 7 * 86_400_000));
+
+  const { data, error } = await supabase
+    .from("escala_turno")
+    .select(
+      "id_escala, id_vinculo, data, hora_inicio, hora_fim, turno, observacoes, vinculo_ilpi(id_ilpi, cargo, usuario(nome))",
+    )
+    .gte("data", ha7d)
+    .order("data", { ascending: true })
+    .order("hora_inicio", { ascending: true })
+    .limit(200);
+
+  if (error) {
+    // 42P01 / PGRST205 = migration 0015 ainda não aplicada no banco.
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return { disponivel: false, casas: usuario.vinculos, turnos: [] };
+    }
+    return { disponivel: true, casas: usuario.vinculos, turnos: [] };
+  }
+
+  const turnos: ItemEscala[] = ((data ?? []) as unknown as {
+    id_escala: string;
+    id_vinculo: string;
+    data: string;
+    hora_inicio: string;
+    hora_fim: string;
+    turno: TurnoEscala;
+    observacoes: string | null;
+    vinculo_ilpi: {
+      id_ilpi: string;
+      cargo: string;
+      usuario: { nome: string } | null;
+    } | null;
+  }[])
+    .filter((e) => Boolean(e.vinculo_ilpi) && idsCasas.includes(e.vinculo_ilpi!.id_ilpi))
+    .map((e) => {
+      const casaId = e.vinculo_ilpi!.id_ilpi;
+      return {
+        id: e.id_escala,
+        vinculoId: e.id_vinculo,
+        casaId,
+        casaNome: casaPorId.get(casaId)!.casaNome,
+        profissionalNome: e.vinculo_ilpi?.usuario?.nome ?? "Profissional",
+        profissionalCargo: e.vinculo_ilpi?.cargo ?? "FUNCIONARIO",
+        ehMeu: meusVinculosIds.has(e.id_vinculo),
+        data: e.data,
+        horaInicio: e.hora_inicio.slice(0, 5),
+        horaFim: e.hora_fim.slice(0, 5),
+        turno: e.turno,
+        observacoes: e.observacoes,
+      };
+    });
+
+  return { disponivel: true, casas: usuario.vinculos, turnos };
+}

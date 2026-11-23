@@ -1439,3 +1439,78 @@ export async function perfilDoGestor(): Promise<PerfilDoGestor | null> {
     vinculos,
   };
 }
+
+export type TurnoEscalaGestor = {
+  id: string;
+  vinculoId: string;
+  casaId: string;
+  casaNome: string;
+  profissionalNome: string;
+  cargo: string;
+  data: string;
+  horaInicio: string;
+  horaFim: string;
+  turno: "MANHA" | "TARDE" | "NOITE" | "PLANTAO_12H" | "INTEGRAL";
+  observacoes: string | null;
+};
+
+export async function escalasDoGestor(): Promise<{
+  disponivel: boolean;
+  turnos: TurnoEscalaGestor[];
+}> {
+  const [supabase, ids] = await Promise.all([createClientOpcional(), idsDasMinhasCasas()]);
+  if (!supabase || ids.length === 0) return { disponivel: true, turnos: [] };
+
+  const [casasRes, escRes] = await Promise.all([
+    supabase.from("ilpi").select("id_ilpi, nome").in("id_ilpi", ids),
+    supabase
+      .from("escala_turno")
+      .select(
+        "id_escala, id_vinculo, data, hora_inicio, hora_fim, turno, observacoes, vinculo_ilpi(id_ilpi, cargo, usuario(nome))",
+      )
+      .order("data", { ascending: true })
+      .order("hora_inicio", { ascending: true })
+      .limit(200),
+  ]);
+
+  if (escRes.error) {
+    if (escRes.error.code === "42P01" || escRes.error.code === "PGRST205") {
+      return { disponivel: false, turnos: [] };
+    }
+    return { disponivel: true, turnos: [] };
+  }
+
+  const nomePorCasa = new Map(
+    ((casasRes.data ?? []) as unknown as { id_ilpi: string; nome: string }[]).map((c) => [
+      c.id_ilpi,
+      c.nome,
+    ]),
+  );
+
+  const turnos: TurnoEscalaGestor[] = ((escRes.data ?? []) as unknown as {
+    id_escala: string;
+    id_vinculo: string;
+    data: string;
+    hora_inicio: string;
+    hora_fim: string;
+    turno: TurnoEscalaGestor["turno"];
+    observacoes: string | null;
+    vinculo_ilpi: { id_ilpi: string; cargo: string; usuario: { nome: string } | null } | null;
+  }[])
+    .filter((e) => Boolean(e.vinculo_ilpi) && nomePorCasa.has(e.vinculo_ilpi!.id_ilpi))
+    .map((e) => ({
+      id: e.id_escala,
+      vinculoId: e.id_vinculo,
+      casaId: e.vinculo_ilpi!.id_ilpi,
+      casaNome: nomePorCasa.get(e.vinculo_ilpi!.id_ilpi) ?? "Casa",
+      profissionalNome: e.vinculo_ilpi?.usuario?.nome ?? "Profissional",
+      cargo: e.vinculo_ilpi?.cargo ?? "FUNCIONARIO",
+      data: e.data,
+      horaInicio: e.hora_inicio.slice(0, 5),
+      horaFim: e.hora_fim.slice(0, 5),
+      turno: e.turno,
+      observacoes: e.observacoes,
+    }));
+
+  return { disponivel: true, turnos };
+}

@@ -1147,6 +1147,7 @@ export async function atualizarPerfil(_estado: Estado, form: FormData): Promise<
   revalidatePath("/funcionario", "layout");
   revalidatePath("/funcionario/perfil");
   revalidatePath("/cliente", "layout");
+  revalidatePath("/cliente/perfil");
   return { ok: "Dados pessoais atualizados." };
 }
 
@@ -1280,6 +1281,7 @@ export async function atualizarAvatar(
   revalidatePath("/funcionario", "layout");
   revalidatePath("/funcionario/perfil");
   revalidatePath("/cliente", "layout");
+  revalidatePath("/cliente/perfil");
   return { ok: url ? "Foto de perfil atualizada." : "Foto de perfil removida." };
 }
 
@@ -1468,4 +1470,72 @@ export async function removerFotoCasa(
 
   await revalidarFotosCasa(supabase, casaId);
   return { ok: "Foto removida." };
+}
+
+const TURNOS_VALIDOS = new Set(["MANHA", "TARDE", "NOITE", "PLANTAO_12H", "INTEGRAL"]);
+const HORA_RE = /^\d{2}:\d{2}$/;
+
+export async function criarTurnoEscala(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const vinculoId = texto(form, "vinculoId");
+  const data = texto(form, "data");
+  const turno = texto(form, "turno").toUpperCase();
+  const horaInicio = texto(form, "horaInicio");
+  const horaFim = texto(form, "horaFim");
+  const observacoes = texto(form, "observacoes");
+
+  if (!UUID_RE.test(vinculoId)) return { erro: "Selecione o profissional da equipe." };
+  if (!dataValida(data)) return { erro: "Informe uma data válida para o turno." };
+  if (!TURNOS_VALIDOS.has(turno)) return { erro: "Selecione um tipo de turno válido." };
+  if (!HORA_RE.test(horaInicio) || !HORA_RE.test(horaFim)) {
+    return { erro: "Informe horário de início e fim no formato HH:MM." };
+  }
+  if (observacoes.length > 500) {
+    return { erro: "As observações aceitam até 500 caracteres." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("escala_turno").insert({
+    id_vinculo: vinculoId,
+    data,
+    turno,
+    hora_inicio: horaInicio,
+    hora_fim: horaFim,
+    observacoes: observacoes || null,
+  });
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return {
+        erro: "A tabela de escalas ainda não existe no banco. Aplique a migration 0015 no Supabase.",
+      };
+    }
+    return { erro: mensagemErro(error) };
+  }
+
+  revalidatePath("/gerente/equipe");
+  revalidatePath("/funcionario/escala");
+  return { ok: "Turno adicionado à escala." };
+}
+
+export async function removerTurnoEscala(
+  idEscala: string,
+): Promise<{ ok?: string; erro?: string }> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+  if (!UUID_RE.test(idEscala)) return { erro: "Turno não encontrado." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("escala_turno")
+    .delete()
+    .eq("id_escala", idEscala)
+    .select("id_escala");
+
+  if (error) return { erro: mensagemErro(error) };
+  if (!data || data.length === 0) return { erro: "Turno não encontrado ou sem permissão." };
+
+  revalidatePath("/gerente/equipe");
+  revalidatePath("/funcionario/escala");
+  return { ok: "Turno removido da escala." };
 }
