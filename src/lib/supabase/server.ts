@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import {
@@ -30,7 +31,29 @@ export async function createClient() {
   });
 }
 
-export async function createClientOpcional() {
+// Memoizado por requisição para compartilhar o mesmo cliente entre layout, metadata e página.
+export const createClientOpcional = cache(async () => {
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) return null;
   return createClient();
-}
+});
+
+export type SessaoUsuario = {
+  id: string;
+  email: string;
+};
+
+/**
+ * Valida o JWT localmente via JWKS (ES256) com fallback automático para Auth quando
+ * necessário, evitando um round-trip de rede ao Supabase Auth em cada leitura.
+ */
+export const sessaoAtual = cache(async (): Promise<SessaoUsuario | null> => {
+  const supabase = await createClientOpcional();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase.auth.getClaims();
+  const sub = data?.claims?.sub;
+  if (error || typeof sub !== "string" || !sub) return null;
+
+  const email = typeof data.claims.email === "string" ? data.claims.email : "";
+  return { id: sub, email };
+});

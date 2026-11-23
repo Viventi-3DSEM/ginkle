@@ -293,6 +293,37 @@
   }
 }
 
+/* Indicador discreto para useLinkStatus: só aparece se a navegação passar de 100ms. */
+.link-hint {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0;
+  visibility: hidden;
+  flex-shrink: 0;
+}
+
+.link-hint.is-pending {
+  visibility: visible;
+  animation:
+    ginkle-hint-in 180ms ease 100ms forwards,
+    ginkle-hint-pulse 900ms ease-in-out 100ms infinite;
+}
+
+@keyframes ginkle-hint-in {
+  to {
+    opacity: 0.75;
+  }
+}
+
+@keyframes ginkle-hint-pulse {
+  50% {
+    opacity: 0.2;
+  }
+}
+
 @keyframes ginkle-rise {
   from {
     opacity: 0;

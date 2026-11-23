@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import ThemeToggle from "@/components/theme/ThemeToggle";
+import LinkPendingHint from "@/components/nav/LinkPendingHint";
 import { sair } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 
@@ -163,7 +164,8 @@ export default function PainelShell({ usuario, children }: Props) {
               )}
             >
               <item.Icone className="size-[18px] shrink-0" aria-hidden="true" />
-              {item.label}
+              <span>{item.label}</span>
+              <LinkPendingHint className="ml-auto" />
             </Link>
           ))}
 
@@ -263,10 +265,11 @@ export default function PainelShell({ usuario, children }: Props) {
             href={item.href}
             aria-current={ativo(item) ? "page" : undefined}
             className={cn(
-              "flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[0.68rem] font-medium transition-colors",
+              "relative flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[0.68rem] font-medium transition-colors",
               ativo(item) ? "text-brand-strong" : "text-muted-foreground",
             )}
           >
+            <LinkPendingHint className="absolute right-2.5 top-2" />
             <item.Icone className="size-5" aria-hidden="true" />
             <span className="max-w-full truncate">{item.curto}</span>
           </Link>

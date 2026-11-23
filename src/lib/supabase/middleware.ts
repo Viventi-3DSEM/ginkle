@@ -47,6 +47,14 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
+  // Visitante sem cookie de sessão em rota pública: evita inicializar Auth desnecessariamente.
+  const temCookieSessao = request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith("sb-"));
+  if (!temCookieSessao && !area && !TELAS_AUTH.includes(pathname)) {
+    return response;
+  }
+
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     cookies: {
       getAll() {
@@ -62,11 +70,15 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims valida a assinatura ES256 localmente (sem round-trip ao Auth quando o
+  // token ainda está válido) e renova automaticamente via getSession quando expira.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId =
+    typeof claimsData?.claims?.sub === "string" && claimsData.claims.sub
+      ? claimsData.claims.sub
+      : null;
 
-  if (!user) {
+  if (!userId) {
     if (area) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
@@ -85,7 +97,7 @@ export async function updateSession(request: NextRequest) {
     const { data } = await supabase
       .from("vinculo_ilpi")
       .select("cargo")
-      .eq("id_usuario", user.id)
+      .eq("id_usuario", userId)
       .eq("ativo", true);
 
     const cargos = (data ?? []).map((linha) => linha.cargo as string);

@@ -1,4 +1,5 @@
-import { createClientOpcional } from "@/lib/supabase/server";
+import { cache } from "react";
+import { createClientOpcional, sessaoAtual } from "@/lib/supabase/server";
 
 /**
  * Camada de leitura do Portal do Familiar. Usa apenas a sessão do usuário:
@@ -197,14 +198,9 @@ function mapearRegistro(
   };
 }
 
-export async function usuarioDoPortal(): Promise<UsuarioDoPortal | null> {
-  const supabase = await createClientOpcional();
-  if (!supabase) return null;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+export const usuarioDoPortal = cache(async (): Promise<UsuarioDoPortal | null> => {
+  const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
+  if (!supabase || !user) return null;
 
   const { data } = await supabase
     .from("usuario")
@@ -216,7 +212,7 @@ export async function usuarioDoPortal(): Promise<UsuarioDoPortal | null> {
     nome: (data?.nome as string | undefined) ?? user.email ?? "Familiar",
     email: (data?.email as string | undefined) ?? user.email ?? "",
   };
-}
+});
 
 export async function portalDoFamiliar(): Promise<PortalDoFamiliar> {
   const vazio: PortalDoFamiliar = {
@@ -232,13 +228,8 @@ export async function portalDoFamiliar(): Promise<PortalDoFamiliar> {
     adesoes: [],
   };
 
-  const supabase = await createClientOpcional();
-  if (!supabase) return vazio;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return vazio;
+  const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
+  if (!supabase || !user) return vazio;
 
   // Filtra explicitamente por id_usuario para que gestores/funcionários que
   // também acessem o portal vejam apenas seus vínculos familiares reais.
@@ -439,13 +430,8 @@ export async function solicitacoesDoFamiliar(): Promise<SolicitacoesDoFamiliar> 
     resumo: { total: 0, pendentes: 0, aprovadas: 0, recusadas: 0, canceladas: 0 },
   };
 
-  const supabase = await createClientOpcional();
-  if (!supabase) return vazio;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return vazio;
+  const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
+  if (!supabase || !user) return vazio;
 
   // Filtra adesao_ilpi e familiar_residente por id_usuario para que gestores
   // que abram o portal vejam apenas seus próprios pedidos como familiar.
@@ -608,17 +594,12 @@ export async function solicitacoesDoFamiliar(): Promise<SolicitacoesDoFamiliar> 
   };
 }
 
-/** Detalhes e linha do tempo de um residente vinculado ao familiar logado. */
-export async function residenteDoFamiliar(id: string): Promise<ResidenteDetalhe | null> {
+/** Detalhes e linha do tempo de um residente vinculado ao familiar logado (memoizado por request). */
+export const residenteDoFamiliar = cache(async (id: string): Promise<ResidenteDetalhe | null> => {
   if (!UUID_RE.test(id)) return null;
 
-  const supabase = await createClientOpcional();
-  if (!supabase) return null;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
+  if (!supabase || !user) return null;
 
   const { data: vinculoDado } = await supabase
     .from("familiar_residente")
@@ -713,4 +694,4 @@ export async function residenteDoFamiliar(id: string): Promise<ResidenteDetalhe 
     totalRegistros: totalRes.count ?? linhasRegistros.length,
     registros: linhasRegistros.map((item) => mapearRegistro(item, r.nome)),
   };
-}
+});

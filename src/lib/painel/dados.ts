@@ -1,12 +1,11 @@
-import { createClient, createClientOpcional } from "@/lib/supabase/server";
+import { cache } from "react";
+import { createClientOpcional, sessaoAtual } from "@/lib/supabase/server";
 import { duracaoIntervalo } from "@/lib/painel/formato";
 
 /**
  * Camada de leitura do painel do gestor. Nenhuma dessas consultas usa service
  * key: quem decide o que volta é a RLS, a partir do vínculo do usuário logado.
  */
-
-type Cliente = Awaited<ReturnType<typeof createClient>>;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -119,14 +118,9 @@ type LinhaCasa = {
 
 export type UsuarioDoPainel = { nome: string; email: string; avatarUrl: string | null };
 
-export async function usuarioAtual(): Promise<UsuarioDoPainel | null> {
-  const supabase = await createClientOpcional();
-  if (!supabase) return null;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+export const usuarioAtual = cache(async (): Promise<UsuarioDoPainel | null> => {
+  const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
+  if (!supabase || !user) return null;
 
   const { data } = await supabase
     .from("usuario")
@@ -139,14 +133,12 @@ export async function usuarioAtual(): Promise<UsuarioDoPainel | null> {
     email: (data?.email as string | undefined) ?? user.email ?? "",
     avatarUrl: (data?.avatar_url as string | null | undefined) ?? null,
   };
-}
+});
 
-/** Ids das casas em que o usuário logado tem vínculo de GESTOR ativo. */
-async function idsDasMinhasCasas(supabase: Cliente): Promise<string[]> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return [];
+/** Ids das casas em que o usuário logado tem vínculo de GESTOR ativo (memoizado por request). */
+const idsDasMinhasCasas = cache(async (): Promise<string[]> => {
+  const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
+  if (!supabase || !user) return [];
 
   const { data } = await supabase
     .from("vinculo_ilpi")
@@ -156,7 +148,7 @@ async function idsDasMinhasCasas(supabase: Cliente): Promise<string[]> {
     .eq("ativo", true);
 
   return [...new Set((data ?? []).map((linha) => linha.id_ilpi as string))];
-}
+});
 
 export async function painelDoGestor(): Promise<PainelDoGestor> {
   const vazio: PainelDoGestor = {
@@ -177,12 +169,13 @@ export async function painelDoGestor(): Promise<PainelDoGestor> {
   const supabase = await createClientOpcional();
   if (!supabase) return vazio;
 
-  const ids = await idsDasMinhasCasas(supabase);
+  const ids = await idsDasMinhasCasas();
   if (ids.length === 0) return vazio;
 
   const desde = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [casas, fotos, residentes, vinculos, adesoes, avaliacoes] =
+  // Todas as consultas em uma única onda paralela (RLS já isola os dados das casas).
+  const [casas, fotos, residentes, vinculos, adesoes, avaliacoes, registrosIds7d, ultimosReg] =
     await Promise.all([
       supabase
         .from("ilpi")
@@ -210,6 +203,18 @@ export async function painelDoGestor(): Promise<PainelDoGestor> {
         .eq("status", "PENDENTE")
         .order("data_solicitacao", { ascending: false }),
       supabase.from("avaliacao").select("id_ilpi, nota").in("id_ilpi", ids),
+      supabase
+        .from("registro_assistencial")
+        .select("id_residente")
+        .gte("criado_em_dispositivo", desde),
+      supabase
+        .from("registro_assistencial")
+        .select(
+          "id_registro, id_residente, tipo, titulo, criado_em_dispositivo, sincronizado_em_servidor, vinculo_ilpi(usuario(nome))",
+        )
+        .gte("criado_em_dispositivo", desde)
+        .order("criado_em_dispositivo", { ascending: false })
+        .limit(20),
     ]);
 
   const listaCasas = (casas.data ?? []) as unknown as LinhaCasa[];
@@ -222,11 +227,7 @@ export async function painelDoGestor(): Promise<PainelDoGestor> {
     status: string;
   }[];
 
-  // Registro assistencial aponta para o residente (a casa não tem FK direta),
-  // então a janela de sete dias sai do cruzamento residente -> casa, e o nome de
-  // quem registrou vem pelo vínculo. A contagem é feita à parte, com `count`,
-  // porque a lista do feed é limitada.
-  const idsResidentes = listaResidentes.map((r) => r.id_residente);
+  const idsResidentesSet = new Set(listaResidentes.map((r) => r.id_residente));
 
   type LinhaRegistro = {
     id_registro: string;
@@ -238,30 +239,13 @@ export async function painelDoGestor(): Promise<PainelDoGestor> {
     vinculo_ilpi: { usuario: { nome: string } | null } | null;
   };
 
-  let totalRegistros = 0;
-  let linhaRegistros: LinhaRegistro[] = [];
+  const totalRegistros = ((registrosIds7d.data ?? []) as unknown as { id_residente: string }[])
+    .filter((r) => idsResidentesSet.has(r.id_residente))
+    .length;
 
-  if (idsResidentes.length > 0) {
-    const [contagem, ultimos] = await Promise.all([
-      supabase
-        .from("registro_assistencial")
-        .select("id_registro", { count: "exact", head: true })
-        .in("id_residente", idsResidentes)
-        .gte("criado_em_dispositivo", desde),
-      supabase
-        .from("registro_assistencial")
-        .select(
-          "id_registro, id_residente, tipo, titulo, criado_em_dispositivo, sincronizado_em_servidor, vinculo_ilpi(usuario(nome))",
-        )
-        .in("id_residente", idsResidentes)
-        .gte("criado_em_dispositivo", desde)
-        .order("criado_em_dispositivo", { ascending: false })
-        .limit(8),
-    ]);
-
-    totalRegistros = contagem.count ?? 0;
-    linhaRegistros = (ultimos.data ?? []) as unknown as LinhaRegistro[];
-  }
+  const linhaRegistros = ((ultimosReg.data ?? []) as unknown as LinhaRegistro[])
+    .filter((r) => idsResidentesSet.has(r.id_residente))
+    .slice(0, 8);
 
   const nomeDoResidente = new Map(
     listaResidentes.map((r) => [r.id_residente, r.nome]),
@@ -362,14 +346,14 @@ export async function painelDoGestor(): Promise<PainelDoGestor> {
   };
 }
 
-/** Casa completa, só se o usuário logado for gestor dela. null = não existe ou não é dele. */
-export async function casaDoGestor(id: string): Promise<CasaCompleta | null> {
+/** Casa completa, só se o usuário logado for gestor dela. Memoizada entre generateMetadata e página. */
+export const casaDoGestor = cache(async (id: string): Promise<CasaCompleta | null> => {
   if (!UUID_RE.test(id)) return null;
 
   const supabase = await createClientOpcional();
   if (!supabase) return null;
 
-  const ids = await idsDasMinhasCasas(supabase);
+  const ids = await idsDasMinhasCasas();
   if (!ids.includes(id)) return null;
 
   const { data: casa } = await supabase
@@ -535,7 +519,7 @@ export async function casaDoGestor(id: string): Promise<CasaCompleta | null> {
       quando: a.data_avaliacao,
     })),
   };
-}
+});
 
 export type PlanoDoGestor = {
   id: string;
@@ -557,7 +541,7 @@ export async function planosDoGestor(): Promise<PlanosDoGestor> {
   const supabase = await createClientOpcional();
   if (!supabase) return { casas: [], planos: [] };
 
-  const ids = await idsDasMinhasCasas(supabase);
+  const ids = await idsDasMinhasCasas();
   if (ids.length === 0) return { casas: [], planos: [] };
 
   const [casasRes, planosRes] = await Promise.all([
@@ -661,10 +645,10 @@ export async function residentesDoGestor(): Promise<ResidentesDoGestor> {
   const supabase = await createClientOpcional();
   if (!supabase) return { casas: [], residentes: [], solicitacoes: [] };
 
-  const ids = await idsDasMinhasCasas(supabase);
+  const ids = await idsDasMinhasCasas();
   if (ids.length === 0) return { casas: [], residentes: [], solicitacoes: [] };
 
-  const [casasRes, residentesRes, adesoesRes] = await Promise.all([
+  const [casasRes, residentesRes, adesoesRes, famRes] = await Promise.all([
     supabase
       .from("ilpi")
       .select("id_ilpi, nome, slug")
@@ -685,6 +669,11 @@ export async function residentesDoGestor(): Promise<ResidentesDoGestor> {
       .in("id_ilpi", ids)
       .order("data_solicitacao", { ascending: false })
       .limit(100),
+    supabase
+      .from("familiar_residente")
+      .select(
+        "id_familiar_residente, id_residente, id_usuario, parentesco, responsavel_principal, usuario(nome, email, telefone)",
+      ),
   ]);
 
   const casas = ((casasRes.data ?? []) as unknown as {
@@ -707,37 +696,29 @@ export async function residentesDoGestor(): Promise<ResidentesDoGestor> {
     observacoes_medicas: string | null;
   }[];
 
-  const idsResidentes = linhasResidentes.map((r) => r.id_residente);
+  const idsResidentesSet = new Set(linhasResidentes.map((r) => r.id_residente));
   const familiaresPorResidente = new Map<string, FamiliarDoResidente[]>();
 
-  if (idsResidentes.length > 0) {
-    const { data: famData } = await supabase
-      .from("familiar_residente")
-      .select(
-        "id_familiar_residente, id_residente, id_usuario, parentesco, responsavel_principal, usuario(nome, email, telefone)",
-      )
-      .in("id_residente", idsResidentes);
-
-    for (const f of (famData ?? []) as unknown as {
-      id_familiar_residente: string;
-      id_residente: string;
-      id_usuario: string;
-      parentesco: string;
-      responsavel_principal: boolean;
-      usuario: { nome: string; email: string; telefone: string | null } | null;
-    }[]) {
-      const lista = familiaresPorResidente.get(f.id_residente) ?? [];
-      lista.push({
-        id: f.id_familiar_residente,
-        usuarioId: f.id_usuario,
-        nome: f.usuario?.nome ?? "Familiar",
-        email: f.usuario?.email ?? "",
-        telefone: f.usuario?.telefone ?? null,
-        parentesco: f.parentesco,
-        responsavelPrincipal: Boolean(f.responsavel_principal),
-      });
-      familiaresPorResidente.set(f.id_residente, lista);
-    }
+  for (const f of (famRes.data ?? []) as unknown as {
+    id_familiar_residente: string;
+    id_residente: string;
+    id_usuario: string;
+    parentesco: string;
+    responsavel_principal: boolean;
+    usuario: { nome: string; email: string; telefone: string | null } | null;
+  }[]) {
+    if (!idsResidentesSet.has(f.id_residente)) continue;
+    const lista = familiaresPorResidente.get(f.id_residente) ?? [];
+    lista.push({
+      id: f.id_familiar_residente,
+      usuarioId: f.id_usuario,
+      nome: f.usuario?.nome ?? "Familiar",
+      email: f.usuario?.email ?? "",
+      telefone: f.usuario?.telefone ?? null,
+      parentesco: f.parentesco,
+      responsavelPrincipal: Boolean(f.responsavel_principal),
+    });
+    familiaresPorResidente.set(f.id_residente, lista);
   }
 
   const residentes: ResidenteDoGestor[] = linhasResidentes
@@ -805,15 +786,10 @@ export type EquipeDoGestor = {
 };
 
 export async function equipeDoGestor(): Promise<EquipeDoGestor> {
-  const supabase = await createClientOpcional();
-  if (!supabase) return { casas: [], membros: [] };
+  const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
+  if (!supabase || !user) return { casas: [], membros: [] };
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { casas: [], membros: [] };
-
-  const ids = await idsDasMinhasCasas(supabase);
+  const ids = await idsDasMinhasCasas();
   if (ids.length === 0) return { casas: [], membros: [] };
 
   const [casasRes, vinculosRes] = await Promise.all([
@@ -940,27 +916,42 @@ export async function financeiroDoGestor(): Promise<FinanceiroDoGestor> {
   const supabase = await createClientOpcional();
   if (!supabase) return vazio;
 
-  const ids = await idsDasMinhasCasas(supabase);
+  const ids = await idsDasMinhasCasas();
   if (ids.length === 0) return vazio;
 
-  const [casasRes, planosRes, residentesRes, adesoesRes] = await Promise.all([
-    supabase
-      .from("ilpi")
-      .select("id_ilpi, nome, slug")
-      .in("id_ilpi", ids)
-      .order("nome", { ascending: true }),
-    supabase
-      .from("plano")
-      .select("id_plano, id_ilpi, nome, valor, ativo")
-      .in("id_ilpi", ids)
-      .order("ativo", { ascending: false })
-      .order("valor", { ascending: true }),
-    supabase.from("residente").select("id_residente, id_ilpi").in("id_ilpi", ids),
-    supabase
-      .from("adesao_ilpi")
-      .select("id_ilpi, id_usuario, usuario(nome, email)")
-      .in("id_ilpi", ids),
-  ]);
+  // Única onda paralela: todas as tabelas abaixo já são filtradas por RLS.
+  const [casasRes, planosRes, residentesRes, adesoesRes, assinaturasRes, familiaresRes, faturasRes] =
+    await Promise.all([
+      supabase
+        .from("ilpi")
+        .select("id_ilpi, nome, slug")
+        .in("id_ilpi", ids)
+        .order("nome", { ascending: true }),
+      supabase
+        .from("plano")
+        .select("id_plano, id_ilpi, nome, valor, ativo")
+        .in("id_ilpi", ids)
+        .order("ativo", { ascending: false })
+        .order("valor", { ascending: true }),
+      supabase.from("residente").select("id_residente, id_ilpi").in("id_ilpi", ids),
+      supabase
+        .from("adesao_ilpi")
+        .select("id_ilpi, id_usuario, usuario(nome, email)")
+        .in("id_ilpi", ids),
+      supabase
+        .from("assinatura")
+        .select(
+          "id_assinatura, id_usuario, id_plano, status, data_inicio, data_fim, usuario(nome, email, telefone)",
+        )
+        .order("data_inicio", { ascending: false }),
+      supabase
+        .from("familiar_residente")
+        .select("id_residente, id_usuario, usuario(nome, email)"),
+      supabase
+        .from("faturamento")
+        .select("id_faturamento, id_assinatura, valor, data_vencimento, data_pagamento, status_pagamento")
+        .order("data_vencimento", { ascending: false }),
+    ]);
 
   const casas = ((casasRes.data ?? []) as unknown as {
     id_ilpi: string;
@@ -987,32 +978,12 @@ export async function financeiroDoGestor(): Promise<FinanceiroDoGestor> {
     }));
 
   const planoPorId = new Map(planos.map((p) => [p.id, p]));
-  const idsPlanos = planos.map((p) => p.id);
 
   const linhasRes = (residentesRes.data ?? []) as unknown as {
     id_residente: string;
     id_ilpi: string;
   }[];
   const casaPorResidente = new Map(linhasRes.map((r) => [r.id_residente, r.id_ilpi]));
-  const idsResidentes = linhasRes.map((r) => r.id_residente);
-
-  const [assinaturasRes, familiaresRes] = await Promise.all([
-    idsPlanos.length > 0
-      ? supabase
-          .from("assinatura")
-          .select(
-            "id_assinatura, id_usuario, id_plano, status, data_inicio, data_fim, usuario(nome, email, telefone)",
-          )
-          .in("id_plano", idsPlanos)
-          .order("data_inicio", { ascending: false })
-      : Promise.resolve({ data: null }),
-    idsResidentes.length > 0
-      ? supabase
-          .from("familiar_residente")
-          .select("id_residente, id_usuario, usuario(nome, email)")
-          .in("id_residente", idsResidentes)
-      : Promise.resolve({ data: null }),
-  ]);
 
   // Deduplica por (casaId, usuarioId) dando prioridade a FAMILIAR sobre SOLICITANTE.
   const candidatosMap = new Map<string, CandidatoAssinante>();
@@ -1053,7 +1024,7 @@ export async function financeiroDoGestor(): Promise<FinanceiroDoGestor> {
 
   const candidatos = [...candidatosMap.values()].sort((a, b) => a.nome.localeCompare(b.nome));
 
-  const linhasAssinaturas = (assinaturasRes.data ?? []) as unknown as {
+  const linhasAssinaturas = ((assinaturasRes.data ?? []) as unknown as {
     id_assinatura: string;
     id_usuario: string;
     id_plano: string;
@@ -1061,48 +1032,41 @@ export async function financeiroDoGestor(): Promise<FinanceiroDoGestor> {
     data_inicio: string;
     data_fim: string | null;
     usuario: { nome: string; email: string; telefone: string | null } | null;
-  }[];
+  }[]).filter((a) => planoPorId.has(a.id_plano));
 
-  const idsAssinaturas = linhasAssinaturas.map((a) => a.id_assinatura);
+  const idsAssinaturasSet = new Set(linhasAssinaturas.map((a) => a.id_assinatura));
   const faturasPorAssinatura = new Map<string, FaturaDoGestor[]>();
 
   let totalPago = 0;
   let totalEmAberto = 0;
   let faturasAtrasadas = 0;
 
-  if (idsAssinaturas.length > 0) {
-    const { data: fatData } = await supabase
-      .from("faturamento")
-      .select("id_faturamento, id_assinatura, valor, data_vencimento, data_pagamento, status_pagamento")
-      .in("id_assinatura", idsAssinaturas)
-      .order("data_vencimento", { ascending: false });
-
-    for (const fat of (fatData ?? []) as unknown as {
-      id_faturamento: string;
-      id_assinatura: string;
-      valor: number | string;
-      data_vencimento: string;
-      data_pagamento: string | null;
-      status_pagamento: string;
-    }[]) {
-      const valor = numero(fat.valor);
-      if (fat.status_pagamento === "PAGO") totalPago += valor;
-      if (fat.status_pagamento === "PENDENTE" || fat.status_pagamento === "ATRASADO") {
-        totalEmAberto += valor;
-      }
-      if (fat.status_pagamento === "ATRASADO") faturasAtrasadas += 1;
-
-      const lista = faturasPorAssinatura.get(fat.id_assinatura) ?? [];
-      lista.push({
-        id: fat.id_faturamento,
-        assinaturaId: fat.id_assinatura,
-        valor,
-        vencimento: fat.data_vencimento,
-        pagamento: fat.data_pagamento,
-        status: fat.status_pagamento,
-      });
-      faturasPorAssinatura.set(fat.id_assinatura, lista);
+  for (const fat of (faturasRes.data ?? []) as unknown as {
+    id_faturamento: string;
+    id_assinatura: string;
+    valor: number | string;
+    data_vencimento: string;
+    data_pagamento: string | null;
+    status_pagamento: string;
+  }[]) {
+    if (!idsAssinaturasSet.has(fat.id_assinatura)) continue;
+    const valor = numero(fat.valor);
+    if (fat.status_pagamento === "PAGO") totalPago += valor;
+    if (fat.status_pagamento === "PENDENTE" || fat.status_pagamento === "ATRASADO") {
+      totalEmAberto += valor;
     }
+    if (fat.status_pagamento === "ATRASADO") faturasAtrasadas += 1;
+
+    const lista = faturasPorAssinatura.get(fat.id_assinatura) ?? [];
+    lista.push({
+      id: fat.id_faturamento,
+      assinaturaId: fat.id_assinatura,
+      valor,
+      vencimento: fat.data_vencimento,
+      pagamento: fat.data_pagamento,
+      status: fat.status_pagamento,
+    });
+    faturasPorAssinatura.set(fat.id_assinatura, lista);
   }
 
   const assinaturas: AssinaturaDoGestor[] = linhasAssinaturas
@@ -1190,10 +1154,11 @@ export async function auditoriaDoGestor(): Promise<AuditoriaDoGestor> {
   const supabase = await createClientOpcional();
   if (!supabase) return vazio;
 
-  const ids = await idsDasMinhasCasas(supabase);
+  const ids = await idsDasMinhasCasas();
   if (ids.length === 0) return vazio;
 
-  const [casasRes, residentesRes, logsRes] = await Promise.all([
+  // Única onda paralela: registro_timeline já filtra por pode_ver_residente na view.
+  const [casasRes, residentesRes, logsRes, regRes] = await Promise.all([
     supabase
       .from("ilpi")
       .select("id_ilpi, nome, slug")
@@ -1209,6 +1174,13 @@ export async function auditoriaDoGestor(): Promise<AuditoriaDoGestor> {
         "id_log, id_usuario, id_ilpi, acao, entidade, id_entidade, detalhes, criado_em_dispositivo, sincronizado_em_servidor, usuario(nome, email)",
       )
       .in("id_ilpi", ids)
+      .order("criado_em_dispositivo", { ascending: false })
+      .limit(200),
+    supabase
+      .from("registro_timeline")
+      .select(
+        "id_registro, id_residente, tipo, titulo, descricao, criado_em_dispositivo, sincronizado_em_servidor, sincronizacao_atrasada, autor_nome, autor_cargo",
+      )
       .order("criado_em_dispositivo", { ascending: false })
       .limit(200),
   ]);
@@ -1232,56 +1204,43 @@ export async function auditoriaDoGestor(): Promise<AuditoriaDoGestor> {
     }
   }
 
-  const idsResidentes = [...residentesPorId.keys()];
   const registros: RegistroAuditoria[] = [];
-
-  if (idsResidentes.length > 0) {
-    const { data: regData } = await supabase
-      .from("registro_timeline")
-      .select(
-        "id_registro, id_residente, tipo, titulo, descricao, criado_em_dispositivo, sincronizado_em_servidor, sincronizacao_atrasada, autor_nome, autor_cargo",
-      )
-      .in("id_residente", idsResidentes)
-      .order("criado_em_dispositivo", { ascending: false })
-      .limit(200);
-
-    for (const r of (regData ?? []) as unknown as {
-      id_registro: string;
-      id_residente: string;
-      tipo: string;
-      titulo: string;
-      descricao: string;
-      criado_em_dispositivo: string;
-      sincronizado_em_servidor: string;
-      sincronizacao_atrasada: boolean;
-      autor_nome: string | null;
-      autor_cargo: string | null;
-    }[]) {
-      const res = residentesPorId.get(r.id_residente);
-      if (!res) continue;
-      const casa = casaPorId.get(res.casaId);
-      if (!casa) continue;
-      // Calculado no servidor para evitar divergência de hidratação quando Node e navegador diferem em Intl.DurationFormat.
-      const intervalo = duracaoIntervalo(r.criado_em_dispositivo, r.sincronizado_em_servidor);
-      registros.push({
-        id: r.id_registro,
-        casaId: casa.id,
-        casaNome: casa.nome,
-        residenteId: r.id_residente,
-        residenteNome: res.nome,
-        tipo: r.tipo,
-        titulo: r.titulo,
-        descricao: r.descricao,
-        criadoEm: r.criado_em_dispositivo,
-        sincronizadoEm: r.sincronizado_em_servidor,
-        atrasado: Boolean(r.sincronizacao_atrasada),
-        intervaloRotulo: intervalo.rotulo,
-        intervaloIso: intervalo.iso,
-        intervaloAdiantado: intervalo.adiantado,
-        autorNome: r.autor_nome ?? "Profissional da equipe",
-        autorCargo: r.autor_cargo ?? "",
-      });
-    }
+  for (const r of (regRes.data ?? []) as unknown as {
+    id_registro: string;
+    id_residente: string;
+    tipo: string;
+    titulo: string;
+    descricao: string;
+    criado_em_dispositivo: string;
+    sincronizado_em_servidor: string;
+    sincronizacao_atrasada: boolean;
+    autor_nome: string | null;
+    autor_cargo: string | null;
+  }[]) {
+    const res = residentesPorId.get(r.id_residente);
+    if (!res) continue;
+    const casa = casaPorId.get(res.casaId);
+    if (!casa) continue;
+    // Calculado no servidor para evitar divergência de hidratação quando Node e navegador diferem em Intl.DurationFormat.
+    const intervalo = duracaoIntervalo(r.criado_em_dispositivo, r.sincronizado_em_servidor);
+    registros.push({
+      id: r.id_registro,
+      casaId: casa.id,
+      casaNome: casa.nome,
+      residenteId: r.id_residente,
+      residenteNome: res.nome,
+      tipo: r.tipo,
+      titulo: r.titulo,
+      descricao: r.descricao,
+      criadoEm: r.criado_em_dispositivo,
+      sincronizadoEm: r.sincronizado_em_servidor,
+      atrasado: Boolean(r.sincronizacao_atrasada),
+      intervaloRotulo: intervalo.rotulo,
+      intervaloIso: intervalo.iso,
+      intervaloAdiantado: intervalo.adiantado,
+      autorNome: r.autor_nome ?? "Profissional da equipe",
+      autorCargo: r.autor_cargo ?? "",
+    });
   }
 
   const acoes: AcaoAuditoria[] = ((logsRes.data ?? []) as unknown as {
@@ -1337,13 +1296,8 @@ export type PerfilDoGestor = {
 };
 
 export async function perfilDoGestor(): Promise<PerfilDoGestor | null> {
-  const supabase = await createClientOpcional();
-  if (!supabase) return null;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
+  if (!supabase || !user) return null;
 
   const [usuarioRes, vinculosRes] = await Promise.all([
     supabase
@@ -1396,7 +1350,7 @@ export async function perfilDoGestor(): Promise<PerfilDoGestor | null> {
     cpf: u?.cpf ?? null,
     telefone: u?.telefone ?? null,
     dataNascimento: u?.data_nascimento ?? null,
-    criadoEm: u?.data_cadastro ?? user.created_at ?? "",
+    criadoEm: u?.data_cadastro ?? "",
     vinculos,
   };
 }
