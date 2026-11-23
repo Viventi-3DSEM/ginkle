@@ -12,6 +12,7 @@ import {
   MoreHorizontal,
   ShieldCheck,
   Tag,
+  User,
   UserCog,
   Users,
   Wallet,
@@ -66,6 +67,13 @@ const NAV_SECUNDARIO = [
     label: "Auditoria",
     curto: "Auditoria",
     Icone: ShieldCheck,
+    exato: false,
+  },
+  {
+    href: "/gerente/perfil",
+    label: "Perfil",
+    curto: "Perfil",
+    Icone: User,
     exato: false,
   },
 ];
@@ -169,7 +177,15 @@ export default function PainelShell({ usuario, children }: Props) {
         </nav>
 
         <div className="mt-auto border-t border-border p-3">
-          <div className="flex items-center gap-2 px-3 py-2">
+          <Link
+            href="/gerente/perfil"
+            className={cn(
+              "flex items-center gap-2 rounded-sm px-3 py-2 transition-colors",
+              pathname.startsWith("/gerente/perfil")
+                ? "bg-secondary/70"
+                : "hover:bg-secondary/50",
+            )}
+          >
             <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-soft font-heading text-xs font-bold text-brand-strong">
               {usuario.nome.slice(0, 1).toUpperCase()}
             </span>
@@ -179,7 +195,7 @@ export default function PainelShell({ usuario, children }: Props) {
                 {usuario.email}
               </span>
             </span>
-          </div>
+          </Link>
           <div className="mt-1 flex items-center gap-1">
             <ThemeToggle />
             <form action={sair}>

@@ -1,4 +1,5 @@
 import { createClient, createClientOpcional } from "@/lib/supabase/server";
+import { duracaoIntervalo } from "@/lib/painel/formato";
 
 /**
  * Camada de leitura do painel do gestor. Nenhuma dessas consultas usa service
@@ -1155,6 +1156,9 @@ export type RegistroAuditoria = {
   criadoEm: string;
   sincronizadoEm: string;
   atrasado: boolean;
+  intervaloRotulo: string;
+  intervaloIso: string;
+  intervaloAdiantado: boolean;
   autorNome: string;
   autorCargo: string;
 };
@@ -1256,6 +1260,8 @@ export async function auditoriaDoGestor(): Promise<AuditoriaDoGestor> {
       if (!res) continue;
       const casa = casaPorId.get(res.casaId);
       if (!casa) continue;
+      // Calculado no servidor para evitar divergência de hidratação quando Node e navegador diferem em Intl.DurationFormat.
+      const intervalo = duracaoIntervalo(r.criado_em_dispositivo, r.sincronizado_em_servidor);
       registros.push({
         id: r.id_registro,
         casaId: casa.id,
@@ -1268,6 +1274,9 @@ export async function auditoriaDoGestor(): Promise<AuditoriaDoGestor> {
         criadoEm: r.criado_em_dispositivo,
         sincronizadoEm: r.sincronizado_em_servidor,
         atrasado: Boolean(r.sincronizacao_atrasada),
+        intervaloRotulo: intervalo.rotulo,
+        intervaloIso: intervalo.iso,
+        intervaloAdiantado: intervalo.adiantado,
         autorNome: r.autor_nome ?? "Profissional da equipe",
         autorCargo: r.autor_cargo ?? "",
       });
@@ -1302,4 +1311,88 @@ export async function auditoriaDoGestor(): Promise<AuditoriaDoGestor> {
     }));
 
   return { casas, registros, acoes };
+}
+
+export type VinculoPerfil = {
+  id: string;
+  casaId: string;
+  casaNome: string;
+  cidade: string;
+  uf: string;
+  cargo: string;
+  desde: string;
+};
+
+export type PerfilDoGestor = {
+  id: string;
+  nome: string;
+  email: string;
+  cpf: string | null;
+  telefone: string | null;
+  dataNascimento: string | null;
+  criadoEm: string;
+  vinculos: VinculoPerfil[];
+};
+
+export async function perfilDoGestor(): Promise<PerfilDoGestor | null> {
+  const supabase = await createClientOpcional();
+  if (!supabase) return null;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const [usuarioRes, vinculosRes] = await Promise.all([
+    supabase
+      .from("usuario")
+      .select("id_usuario, nome, email, cpf, telefone, data_nascimento, data_cadastro")
+      .eq("id_usuario", user.id)
+      .maybeSingle(),
+    supabase
+      .from("vinculo_ilpi")
+      .select("id_vinculo, id_ilpi, cargo, data_vinculo, ilpi(nome, cidade, uf)")
+      .eq("id_usuario", user.id)
+      .eq("ativo", true)
+      .order("data_vinculo", { ascending: true }),
+  ]);
+
+  const u = usuarioRes.data as unknown as {
+    id_usuario: string;
+    nome: string;
+    email: string;
+    cpf: string | null;
+    telefone: string | null;
+    data_nascimento: string | null;
+    data_cadastro: string;
+  } | null;
+
+  const vinculos: VinculoPerfil[] = ((vinculosRes.data ?? []) as unknown as {
+    id_vinculo: string;
+    id_ilpi: string;
+    cargo: string;
+    data_vinculo: string;
+    ilpi: { nome: string; cidade: string; uf: string } | null;
+  }[])
+    .filter((v) => Boolean(v.ilpi))
+    .map((v) => ({
+      id: v.id_vinculo,
+      casaId: v.id_ilpi,
+      casaNome: v.ilpi!.nome,
+      cidade: v.ilpi!.cidade,
+      uf: v.ilpi!.uf,
+      cargo: v.cargo,
+      desde: v.data_vinculo,
+    }));
+
+  return {
+    id: u?.id_usuario ?? user.id,
+    nome: u?.nome ?? user.email ?? "Gestor",
+    email: u?.email ?? user.email ?? "",
+    cpf: u?.cpf ?? null,
+    telefone: u?.telefone ?? null,
+    dataNascimento: u?.data_nascimento ?? null,
+    criadoEm: u?.data_cadastro ?? user.created_at ?? "",
+    vinculos,
+  };
 }

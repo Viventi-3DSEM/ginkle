@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Syne, Lora } from "next/font/google";
+import Script from "next/script";
 import "@/app/globals.css";
 
 const inter = Inter({
@@ -39,10 +40,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       data-scroll-behavior="smooth"
       className={`${inter.variable} ${syne.variable} ${lora.variable} h-full`}
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-      </head>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <Script id="ginkle-theme" strategy="beforeInteractive">
+          {themeScript}
+        </Script>
+        {children}
+      </body>
     </html>
   );
 }

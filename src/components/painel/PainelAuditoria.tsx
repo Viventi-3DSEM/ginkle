@@ -25,7 +25,6 @@ import {
   chaveDia,
   dataHora,
   dataHoraSegundos,
-  duracaoIntervalo,
   horaCurta,
   rotuloCargo,
   rotuloDia,
@@ -459,23 +458,20 @@ export default function PainelAuditoria({ casas, registros, acoes, diaHoje }: Pr
         setAvisoExport("Não há registros visíveis para exportar.");
         return;
       }
-      const linhas = cuidadosVisiveis.map((r) => {
-        const intervalo = duracaoIntervalo(r.criadoEm, r.sincronizadoEm);
-        return [
-          codigoCurto(r.id),
-          r.casaNome,
-          r.residenteNome,
-          rotuloTipo(r.tipo),
-          r.titulo,
-          r.descricao,
-          r.autorNome,
-          rotuloCargo(r.autorCargo),
-          dataHoraSegundos(r.criadoEm),
-          dataHoraSegundos(r.sincronizadoEm),
-          intervalo.rotulo,
-          r.atrasado ? "Sincronizado com atraso (>10 min)" : "Verificado no prazo",
-        ];
-      });
+      const linhas = cuidadosVisiveis.map((r) => [
+        codigoCurto(r.id),
+        r.casaNome,
+        r.residenteNome,
+        rotuloTipo(r.tipo),
+        r.titulo,
+        r.descricao,
+        r.autorNome,
+        rotuloCargo(r.autorCargo),
+        dataHoraSegundos(r.criadoEm),
+        dataHoraSegundos(r.sincronizadoEm),
+        r.intervaloRotulo,
+        r.atrasado ? "Sincronizado com atraso (>10 min)" : "Verificado no prazo",
+      ]);
       baixarCsv(
         `auditoria-cuidados-${diaHoje}.csv`,
         [
@@ -857,7 +853,6 @@ export default function PainelAuditoria({ casas, registros, acoes, diaHoje }: Pr
                           const estilo =
                             ESTILO_TIPO_CUIDADO[item.tipo] ?? ESTILO_TIPO_CUIDADO.CUIDADO;
                           const Icone = estilo.Icone;
-                          const intervalo = duracaoIntervalo(item.criadoEm, item.sincronizadoEm);
 
                           return (
                             <li
@@ -890,7 +885,7 @@ export default function PainelAuditoria({ casas, registros, acoes, diaHoje }: Pr
                                   {item.atrasado ? (
                                     <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-wider text-warning">
                                       <Clock className="size-3" aria-hidden="true" />
-                                      Atraso de {intervalo.rotulo}
+                                      Atraso de {item.intervaloRotulo}
                                     </span>
                                   ) : (
                                     <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-wider text-success">
@@ -968,15 +963,15 @@ export default function PainelAuditoria({ casas, registros, acoes, diaHoje }: Pr
                                     Diferença
                                   </span>
                                   <time
-                                    dateTime={intervalo.iso}
+                                    dateTime={item.intervaloIso}
                                     className={cn(
                                       "mt-0.5 block font-medium",
                                       item.atrasado ? "text-warning" : "text-success",
                                     )}
                                   >
-                                    {intervalo.adiantado
-                                      ? `${intervalo.rotulo} adiantado`
-                                      : intervalo.rotulo}
+                                    {item.intervaloAdiantado
+                                      ? `${item.intervaloRotulo} adiantado`
+                                      : item.intervaloRotulo}
                                   </time>
                                 </div>
                               </div>

@@ -202,7 +202,9 @@ function formatarDuracaoFallback(partes: DuracaoPartes): string {
   if (partes.hours) tokens.push(`${partes.hours} h`);
   if (partes.minutes) tokens.push(`${partes.minutes} min`);
   if (partes.seconds || tokens.length === 0) tokens.push(`${partes.seconds ?? 0} s`);
-  return tokens.join(" ");
+  if (tokens.length === 1) return tokens[0];
+  if (tokens.length === 2) return `${tokens[0]} e ${tokens[1]}`;
+  return `${tokens.slice(0, -1).join(", ")} e ${tokens[tokens.length - 1]}`;
 }
 
 /**

@@ -1096,3 +1096,90 @@ export async function atualizarStatusFatura(
   revalidarFinanceiro();
   return { ok: "Fatura atualizada." };
 }
+
+export async function atualizarPerfil(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const nome = texto(form, "nome");
+  const telDigitos = soDigitos(texto(form, "telefone"));
+  const dataNascimento = texto(form, "dataNascimento");
+
+  if (nome.length < 3 || nome.length > 120) {
+    return { erro: "Informe seu nome completo (entre 3 e 120 caracteres)." };
+  }
+  if (telDigitos.length > 0 && !telefoneValido(telDigitos)) {
+    return { erro: "Telefone incompleto. Use DDD + número (10 ou 11 dígitos)." };
+  }
+  if (dataNascimento.length > 0) {
+    if (!dataValida(dataNascimento) || dataNascimento > hojeBrasiliaIso()) {
+      return { erro: "Informe uma data de nascimento válida." };
+    }
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { erro: "Sua sessão expirou. Entre novamente." };
+
+  const { error } = await supabase
+    .from("usuario")
+    .update({
+      nome,
+      telefone: telDigitos || null,
+      data_nascimento: dataNascimento || null,
+    })
+    .eq("id_usuario", user.id);
+
+  if (error) return { erro: mensagemErro(error) };
+
+  revalidatePath("/gerente", "layout");
+  revalidatePath("/gerente/perfil");
+  revalidatePath("/cliente", "layout");
+  return { ok: "Dados pessoais atualizados." };
+}
+
+export async function alterarSenha(_estado: Estado, form: FormData): Promise<Estado> {
+  if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
+
+  const senhaAtual = String(form.get("senhaAtual") ?? "");
+  const novaSenha = String(form.get("novaSenha") ?? "");
+
+  if (senhaAtual.length < 6) return { erro: "Informe sua senha atual." };
+  if (novaSenha.length < 6) return { erro: "A nova senha precisa de pelo menos 6 caracteres." };
+  if (novaSenha === senhaAtual) {
+    return { erro: "A nova senha precisa ser diferente da atual." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user || !user.email) return { erro: "Sua sessão expirou. Entre novamente." };
+
+  const { error: erroConfirma } = await supabase.auth.signInWithPassword({
+    email: user.email,
+    password: senhaAtual,
+  });
+  if (erroConfirma) {
+    const m = erroConfirma.message.toLowerCase();
+    if (m.includes("rate limit") || m.includes("too many")) {
+      return { erro: "Muitas tentativas em pouco tempo. Espere alguns minutos." };
+    }
+    return { erro: "Senha atual incorreta." };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: novaSenha });
+  if (error) {
+    const m = error.message.toLowerCase();
+    if (m.includes("same password") || m.includes("different from the old")) {
+      return { erro: "A nova senha precisa ser diferente da atual." };
+    }
+    if (m.includes("password should be")) {
+      return { erro: "A nova senha precisa de pelo menos 6 caracteres." };
+    }
+    return { erro: "Não foi possível atualizar a senha agora. Tente novamente." };
+  }
+
+  return { ok: "Senha atualizada com sucesso." };
+}
