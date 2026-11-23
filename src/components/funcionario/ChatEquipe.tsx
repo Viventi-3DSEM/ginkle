@@ -73,71 +73,102 @@ export default function ChatEquipe({ dados }: { dados: ChatDaEquipe }) {
     );
   }, [dados.conversas]);
 
-  // Assinatura Realtime (Postgres Changes) com RLS: recebe mensagens dos familiares em tempo real.
+  // Assinatura Realtime (Postgres Changes) com JWT da sessão: sem `setAuth`,
+  // o @supabase/ssr abre o WebSocket como anon e a RLS silencia os eventos.
   useEffect(() => {
     if (!dados.usuarioId || !supabaseConfigurado()) return;
 
+    let cancelado = false;
     const supabase = createClient();
-    const canal = supabase
-      .channel(`chat-equipe-${dados.usuarioId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "mensagem" },
-        (payload) => {
-          const row = payload.new as {
-            id_mensagem?: string;
-            id_conversa?: string;
-            id_usuario?: string;
-            conteudo?: string;
-            data_hora?: string;
-          };
-          if (!row.id_mensagem || !row.id_conversa || !row.conteudo) return;
+    let canal: ReturnType<typeof supabase.channel> | null = null;
 
-          const meta = conversasMapaRef.current.get(row.id_conversa);
-          if (!meta) {
+    const {
+      data: { subscription: authSub },
+    } = supabase.auth.onAuthStateChange((_ev, session) => {
+      if (session?.access_token) {
+        void supabase.realtime.setAuth(session.access_token);
+      }
+    });
+
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (cancelado) return;
+      if (data.session?.access_token) {
+        await supabase.realtime.setAuth(data.session.access_token);
+      }
+      if (cancelado) return;
+
+      canal = supabase
+        .channel(`chat-equipe-${dados.usuarioId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "mensagem" },
+          (payload) => {
+            const row = payload.new as {
+              id_mensagem?: string;
+              id_conversa?: string;
+              id_usuario?: string;
+              conteudo?: string;
+              data_hora?: string;
+            };
+            if (!row.id_mensagem || !row.id_conversa || !row.conteudo) return;
+
+            const meta = conversasMapaRef.current.get(row.id_conversa);
+            if (!meta) {
+              router.refresh();
+              return;
+            }
+
+            const ehMinha = row.id_usuario === dados.usuarioId;
+            const ehFamiliar = row.id_usuario === meta.familiarId;
+            const autorNome = ehMinha
+              ? "Você"
+              : ehFamiliar
+                ? meta.familiarNome
+                : (dados.nomesEquipe[row.id_usuario ?? ""] ?? "Equipe");
+
+            const nova: MensagemEquipeChat = {
+              id: row.id_mensagem,
+              conversaId: row.id_conversa,
+              conteudo: row.conteudo,
+              dataHora: row.data_hora ?? new Date().toISOString(),
+              ehMinha,
+              ehFamiliar,
+              autorNome,
+            };
+
+            setMensagensLocais((prev) =>
+              prev.some((m) => m.id === nova.id) ? prev : [...prev, nova],
+            );
+            if (!ehMinha) setAnuncio(`Nova mensagem de ${autorNome}.`);
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "conversa" },
+          () => {
             router.refresh();
-            return;
-          }
-
-          const ehMinha = row.id_usuario === dados.usuarioId;
-          const ehFamiliar = row.id_usuario === meta.familiarId;
-          const autorNome = ehMinha
-            ? "Você"
-            : ehFamiliar
-              ? meta.familiarNome
-              : (dados.nomesEquipe[row.id_usuario ?? ""] ?? "Equipe");
-
-          const nova: MensagemEquipeChat = {
-            id: row.id_mensagem,
-            conversaId: row.id_conversa,
-            conteudo: row.conteudo,
-            dataHora: row.data_hora ?? new Date().toISOString(),
-            ehMinha,
-            ehFamiliar,
-            autorNome,
-          };
-
-          setMensagensLocais((prev) =>
-            prev.some((m) => m.id === nova.id) ? prev : [...prev, nova],
-          );
-          if (!ehMinha) setAnuncio(`Nova mensagem de ${autorNome}.`);
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "conversa" },
-        () => {
-          router.refresh();
-        },
-      )
-      .subscribe((status) => {
-        setRealtimeAtivo(status === "SUBSCRIBED");
-      });
+          },
+        )
+        .subscribe((status) => {
+          if (!cancelado) setRealtimeAtivo(status === "SUBSCRIBED");
+        });
+    });
 
     return () => {
-      void supabase.removeChannel(canal);
+      cancelado = true;
+      authSub.unsubscribe();
+      if (canal) void supabase.removeChannel(canal);
     };
   }, [dados.usuarioId, dados.nomesEquipe, router]);
+
+  // Fallback automático: se o WebSocket estiver bloqueado pela rede, atualiza sozinho a cada 8s.
+  useEffect(() => {
+    if (realtimeAtivo) return;
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, 8000);
+    return () => window.clearInterval(id);
+  }, [realtimeAtivo, router]);
 
   const contatosVisiveis = useMemo(
     () =>
