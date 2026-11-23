@@ -6,7 +6,7 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { redefinirSenha, type Estado } from "../actions";
 
 const inputClass =
-  "w-full border-b border-input bg-transparent py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-brand-strong";
+  "w-full border-b border-input bg-transparent py-2.5 text-base outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-brand-strong sm:text-sm";
 
 const labelClass =
   "mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground";
@@ -40,6 +40,7 @@ export default function RedefinirSenha() {
               <button
                 type="button"
                 onClick={() => setShowPw((v) => !v)}
+                aria-pressed={showPw}
                 aria-label={showPw ? "Ocultar senha" : "Mostrar senha"}
                 className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
               >

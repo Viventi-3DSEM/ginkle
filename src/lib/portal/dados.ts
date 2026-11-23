@@ -8,7 +8,7 @@ import { createClientOpcional, sessaoAtual } from "@/lib/supabase/server";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type UsuarioDoPortal = { nome: string; email: string };
+export type UsuarioDoPortal = { nome: string; email: string; avatarUrl: string | null };
 
 export type CasaDoResidente = {
   id: string;
@@ -204,13 +204,14 @@ export const usuarioDoPortal = cache(async (): Promise<UsuarioDoPortal | null> =
 
   const { data } = await supabase
     .from("usuario")
-    .select("nome, email")
+    .select("nome, email, avatar_url")
     .eq("id_usuario", user.id)
     .maybeSingle();
 
   return {
     nome: (data?.nome as string | undefined) ?? user.email ?? "Familiar",
     email: (data?.email as string | undefined) ?? user.email ?? "",
+    avatarUrl: (data?.avatar_url as string | null | undefined) ?? null,
   };
 });
 

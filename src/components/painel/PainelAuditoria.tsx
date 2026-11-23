@@ -42,6 +42,9 @@ type Props = {
   casas: CasaResumo[];
   registros: RegistroAuditoria[];
   acoes: AcaoAuditoria[];
+  casaInicialId?: string;
+  registrosLimitados?: boolean;
+  acoesLimitadas?: boolean;
   diaHoje: string;
 };
 
@@ -211,11 +214,13 @@ function codigoCurto(id: string): string {
 }
 
 function escaparCsv(valor: string): string {
-  const limpo = valor.replace(/\r?\n/g, " ");
-  if (/[;"\n]/.test(limpo)) {
-    return `"${limpo.replace(/"/g, '""')}"`;
+  const limpo = valor.replace(/[\r\n]+/g, " ");
+  // Neutraliza injeção de fórmula em planilhas (Excel/LibreOffice) quando a célula começa por =, +, - ou @.
+  const seguro = /^[ \t]*[=+\-@]/.test(limpo) ? `'${limpo}` : limpo;
+  if (/[;"\t]/.test(seguro)) {
+    return `"${seguro.replace(/"/g, '""')}"`;
   }
-  return limpo;
+  return seguro;
 }
 
 function baixarCsv(nomeArquivo: string, cabecalho: string[], linhas: string[][]) {
@@ -278,9 +283,19 @@ function Stat({
   );
 }
 
-export default function PainelAuditoria({ casas, registros, acoes, diaHoje }: Props) {
+export default function PainelAuditoria({
+  casas,
+  registros,
+  acoes,
+  casaInicialId,
+  registrosLimitados = false,
+  acoesLimitadas = false,
+  diaHoje,
+}: Props) {
+  const casaValidaInicial =
+    casaInicialId && casas.some((c) => c.id === casaInicialId) ? casaInicialId : "TODAS";
   const [filtroCasa, setFiltroCasa] = useState<string>(
-    casas.length === 1 ? casas[0].id : "TODAS",
+    casas.length === 1 ? casas[0].id : casaValidaInicial,
   );
   const [abaAtiva, setAbaAtiva] = useState<Aba>("cuidados");
 
@@ -475,17 +490,17 @@ export default function PainelAuditoria({ casas, registros, acoes, diaHoje }: Pr
       baixarCsv(
         `auditoria-cuidados-${diaHoje}.csv`,
         [
-          "Codigo",
+          "Código",
           "Casa",
           "Residente",
           "Tipo",
-          "Titulo",
-          "Descricao",
-          "Responsavel",
+          "Título",
+          "Descrição",
+          "Responsável",
           "Cargo",
-          "Horario no aparelho",
-          "Horario no servidor",
-          "Diferenca",
+          "Horário no aparelho",
+          "Horário no servidor",
+          "Diferença",
           "Integridade",
         ],
         linhas,
@@ -516,15 +531,15 @@ export default function PainelAuditoria({ casas, registros, acoes, diaHoje }: Pr
     baixarCsv(
       `auditoria-gestao-${diaHoje}.csv`,
       [
-        "Codigo",
+        "Código",
         "Casa",
-        "Area",
-        "Acao",
+        "Área",
+        "Ação",
         "Detalhes",
-        "Responsavel",
+        "Responsável",
         "E-mail",
-        "Horario no aparelho",
-        "Horario no servidor",
+        "Horário no aparelho",
+        "Horário no servidor",
       ],
       linhas,
     );
@@ -667,7 +682,10 @@ export default function PainelAuditoria({ casas, registros, acoes, diaHoje }: Pr
         <Lock className="size-4 shrink-0 text-brand-strong" aria-hidden="true" />
         <p className="leading-relaxed">
           <span className="font-semibold text-foreground">Histórico imutável:</span> nem
-          gestores nem funcionários conseguem editar ou apagar entradas depois de salvas.
+          gestores nem funcionários conseguem editar ou apagar registros depois de salvos.
+          {registrosLimitados || acoesLimitadas
+            ? " A visualização exibe os 200 itens mais recentes de cada trilha."
+            : ""}
         </p>
       </div>
 

@@ -39,6 +39,7 @@ export default async function EquipeGestorPage({ searchParams }: Props) {
         </div>
       ) : (
         <GerenciadorEquipe
+          key={params.casa ?? ""}
           casas={casas}
           membros={membros}
           casaInicialId={params.casa}

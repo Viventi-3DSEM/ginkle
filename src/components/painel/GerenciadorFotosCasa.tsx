@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -13,6 +13,7 @@ import {
   Loader2,
   Star,
   Trash2,
+  X,
 } from "lucide-react";
 import {
   atualizarLegendaFoto,
@@ -41,6 +42,8 @@ type Props = {
   maxFotos?: number;
 };
 
+type AcaoCard = "legenda" | "capa" | "anterior" | "proxima" | null;
+
 function CardFoto({
   foto,
   casaId,
@@ -48,6 +51,7 @@ function CardFoto({
   total,
   onAviso,
   onErro,
+  onPedirRemocao,
 }: {
   foto: FotoCasaItem;
   casaId: string;
@@ -55,18 +59,29 @@ function CardFoto({
   total: number;
   onAviso: (msg: string) => void;
   onErro: (msg: string) => void;
+  onPedirRemocao: (foto: FotoCasaItem, indice: number) => void;
 }) {
   const [legenda, setLegenda] = useState(foto.legenda ?? "");
+  const [ultimaPropLegenda, setUltimaPropLegenda] = useState(foto.legenda ?? "");
+  const [acaoAtiva, setAcaoAtiva] = useState<AcaoCard>(null);
   const [pendente, startTransition] = useTransition();
+
+  if ((foto.legenda ?? "") !== ultimaPropLegenda) {
+    const nova = foto.legenda ?? "";
+    setUltimaPropLegenda(nova);
+    setLegenda(nova);
+  }
 
   const legendaMudou = legenda.trim() !== (foto.legenda ?? "").trim();
   const ehCapa = indice === 0;
 
-  function executar(fn: () => Promise<{ erro?: string; ok?: string }>) {
+  function executar(acao: Exclude<AcaoCard, null>, fn: () => Promise<{ erro?: string; ok?: string }>) {
     onErro("");
     onAviso("");
+    setAcaoAtiva(acao);
     startTransition(async () => {
       const res = await fn();
+      setAcaoAtiva(null);
       if (res.erro) onErro(res.erro);
       else if (res.ok) onAviso(res.ok);
     });
@@ -95,7 +110,7 @@ function CardFoto({
           onSubmit={(e) => {
             e.preventDefault();
             if (!legendaMudou || pendente) return;
-            executar(() => atualizarLegendaFoto(foto.id, casaId, legenda));
+            executar("legenda", () => atualizarLegendaFoto(foto.id, casaId, legenda));
           }}
           className="flex items-center gap-1.5"
         >
@@ -110,7 +125,7 @@ function CardFoto({
             disabled={pendente}
             onChange={(e) => setLegenda(e.target.value)}
             placeholder="Legenda opcional (ex.: Jardim)"
-            className="min-h-8 min-w-0 flex-1 border-b border-input bg-transparent py-1 text-xs outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-brand-strong"
+            className="min-h-8 min-w-0 flex-1 border-b border-input bg-transparent py-1 text-base outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-brand-strong sm:text-xs"
           />
           {legendaMudou ? (
             <button
@@ -119,7 +134,7 @@ function CardFoto({
               aria-label="Salvar legenda"
               className="inline-flex size-8 shrink-0 items-center justify-center rounded-sm bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {pendente ? (
+              {acaoAtiva === "legenda" ? (
                 <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
               ) : (
                 <Check className="size-3.5" aria-hidden="true" />
@@ -134,10 +149,14 @@ function CardFoto({
               <button
                 type="button"
                 disabled={pendente}
-                onClick={() => executar(() => definirCapaCasa(foto.id, casaId))}
+                onClick={() => executar("capa", () => definirCapaCasa(foto.id, casaId))}
                 className="inline-flex min-h-8 items-center gap-1 rounded-sm border border-border px-2 py-1 text-[0.72rem] font-medium transition-colors hover:bg-secondary disabled:opacity-50"
               >
-                <Star className="size-3 text-brand-strong" aria-hidden="true" />
+                {acaoAtiva === "capa" ? (
+                  <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Star className="size-3 text-brand-strong" aria-hidden="true" />
+                )}
                 Capa
               </button>
             ) : null}
@@ -147,20 +166,32 @@ function CardFoto({
                 <button
                   type="button"
                   disabled={pendente || indice === 0}
-                  onClick={() => executar(() => reordenarFotoCasa(foto.id, casaId, "anterior"))}
-                  aria-label="Mover foto para a esquerda"
+                  onClick={() =>
+                    executar("anterior", () => reordenarFotoCasa(foto.id, casaId, "anterior"))
+                  }
+                  aria-label="Mover foto para antes"
                   className="inline-flex size-8 items-center justify-center rounded-sm border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-35"
                 >
-                  <ArrowLeft className="size-3.5" aria-hidden="true" />
+                  {acaoAtiva === "anterior" ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <ArrowLeft className="size-3.5" aria-hidden="true" />
+                  )}
                 </button>
                 <button
                   type="button"
                   disabled={pendente || indice === total - 1}
-                  onClick={() => executar(() => reordenarFotoCasa(foto.id, casaId, "proxima"))}
-                  aria-label="Mover foto para a direita"
+                  onClick={() =>
+                    executar("proxima", () => reordenarFotoCasa(foto.id, casaId, "proxima"))
+                  }
+                  aria-label="Mover foto para depois"
                   className="inline-flex size-8 items-center justify-center rounded-sm border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-35"
                 >
-                  <ArrowRight className="size-3.5" aria-hidden="true" />
+                  {acaoAtiva === "proxima" ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                  )}
                 </button>
               </>
             ) : null}
@@ -169,15 +200,11 @@ function CardFoto({
           <button
             type="button"
             disabled={pendente}
-            onClick={() => executar(() => removerFotoCasa(foto.id, casaId))}
+            onClick={() => onPedirRemocao(foto, indice)}
             aria-label={`Remover foto ${indice + 1}`}
             className="inline-flex size-8 items-center justify-center rounded-sm border border-border text-muted-foreground transition-colors hover:border-danger/40 hover:text-danger disabled:opacity-50"
           >
-            {pendente ? (
-              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-            ) : (
-              <Trash2 className="size-3.5" aria-hidden="true" />
-            )}
+            <Trash2 className="size-3.5" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -188,12 +215,92 @@ function CardFoto({
 export default function GerenciadorFotosCasa({ casaId, fotos, maxFotos = 12 }: Props) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const cancelarBtnRef = useRef<HTMLButtonElement>(null);
   const [arrastando, setArrastando] = useState(false);
   const [enviandoQtd, setEnviandoQtd] = useState(0);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
+  const [alvoRemover, setAlvoRemover] = useState<{ foto: FotoCasaItem; indice: number } | null>(
+    null,
+  );
+  const [erroDialogo, setErroDialogo] = useState("");
+  const [removendo, startRemocao] = useTransition();
+
+  const tituloDialogId = useId();
+  const descDialogId = useId();
+
+  const removendoRef = useRef(removendo);
+  useEffect(() => {
+    removendoRef.current = removendo;
+    const dialog = dialogRef.current;
+    if (dialog) {
+      dialog.setAttribute("closedby", removendo ? "none" : "any");
+    }
+  }, [removendo]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    dialog.setAttribute("closedby", "any");
+    if ("closedBy" in HTMLDialogElement.prototype) return;
+
+    const fora = (e: PointerEvent) => {
+      const r = dialog.getBoundingClientRect();
+      return (
+        e.clientX < r.left ||
+        e.clientX > r.right ||
+        e.clientY < r.top ||
+        e.clientY > r.bottom
+      );
+    };
+
+    let pressionouFora = false;
+    const onDown = (e: PointerEvent) => {
+      pressionouFora = fora(e);
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!removendoRef.current && pressionouFora && fora(e)) dialog.close();
+      pressionouFora = false;
+    };
+
+    dialog.addEventListener("pointerdown", onDown);
+    dialog.addEventListener("pointerup", onUp);
+    return () => {
+      dialog.removeEventListener("pointerdown", onDown);
+      dialog.removeEventListener("pointerup", onUp);
+    };
+  }, []);
 
   const vagasRestantes = Math.max(0, maxFotos - fotos.length);
+
+  function abrirRemocao(foto: FotoCasaItem, indice: number) {
+    setErro("");
+    setAviso("");
+    setErroDialogo("");
+    setAlvoRemover({ foto, indice });
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      cancelarBtnRef.current?.focus();
+    }
+  }
+
+  function confirmarRemocao() {
+    if (!alvoRemover) return;
+    const fotoId = alvoRemover.foto.id;
+    setErroDialogo("");
+    startRemocao(async () => {
+      const res = await removerFotoCasa(fotoId, casaId);
+      if (res.erro) {
+        setErroDialogo(res.erro);
+      } else {
+        setAviso(res.ok ?? "Foto removida.");
+        dialogRef.current?.close("confirmed");
+      }
+    });
+  }
 
   async function processarArquivos(lista: FileList | File[]) {
     const arquivos = Array.from(lista);
@@ -280,7 +387,7 @@ export default function GerenciadorFotosCasa({ casaId, fotos, maxFotos = 12 }: P
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             JPG, PNG, WebP ou AVIF até 5 MB cada ({fotos.length}/{maxFotos}). A primeira foto é a
-            capa na vitrine.
+            capa no diretório público.
           </p>
         </div>
 
@@ -351,10 +458,81 @@ export default function GerenciadorFotosCasa({ casaId, fotos, maxFotos = 12 }: P
               total={fotos.length}
               onAviso={setAviso}
               onErro={setErro}
+              onPedirRemocao={abrirRemocao}
             />
           ))}
         </ul>
       )}
+
+      <dialog
+        ref={dialogRef}
+        aria-labelledby={tituloDialogId}
+        aria-describedby={descDialogId}
+        onCancel={(e) => {
+          if (removendo) e.preventDefault();
+        }}
+        onClose={(e) => {
+          e.currentTarget.returnValue = "";
+          setAlvoRemover(null);
+          setErroDialogo("");
+        }}
+        className="m-auto w-[calc(100%-2rem)] max-w-md rounded-sm border border-border bg-card p-0 text-foreground shadow-xl"
+      >
+        <div className="p-6">
+          <div className="flex items-start justify-between gap-3">
+            <h2 id={tituloDialogId} className="font-heading text-lg font-semibold">
+              Remover foto?
+            </h2>
+            <button
+              type="button"
+              onClick={() => dialogRef.current?.close("cancel")}
+              disabled={removendo}
+              aria-label="Fechar janela"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+
+          <p id={descDialogId} className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            A foto {alvoRemover ? alvoRemover.indice + 1 : ""}
+            {alvoRemover?.foto.legenda ? ` (“${alvoRemover.foto.legenda}”)` : ""} será removida
+            permanentemente da galeria da casa.
+          </p>
+
+          {erroDialogo ? (
+            <p
+              role="alert"
+              className="mt-4 flex items-start gap-2 border-l-2 border-danger bg-background/60 px-3 py-2.5 text-xs leading-relaxed text-danger"
+            >
+              <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              <span>{erroDialogo}</span>
+            </p>
+          ) : null}
+
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              ref={cancelarBtnRef}
+              type="button"
+              autoFocus
+              onClick={() => dialogRef.current?.close("cancel")}
+              disabled={removendo}
+              className="inline-flex min-h-11 items-center justify-center rounded-sm border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={confirmarRemocao}
+              disabled={removendo || !alvoRemover}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-sm bg-danger px-4 py-2 text-sm font-semibold text-danger-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {removendo ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+              {removendo ? "Removendo..." : "Remover foto"}
+            </button>
+          </div>
+        </div>
+      </dialog>
     </div>
   );
 }

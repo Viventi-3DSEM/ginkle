@@ -6,13 +6,14 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/env";
 import { cargoDoUsuario, homePorCargo } from "@/lib/auth/sessao";
 import { contaDemoPorPapel, demoHabilitado, senhaDemo } from "@/lib/auth/demo";
+import { destinoSeguro } from "@/lib/auth/destino";
 import { cpfValido, soDigitos } from "@/lib/validacao/cpf";
 import { telefoneValido } from "@/lib/validacao/telefone";
 
 export type Estado = { erro?: string; ok?: string };
 
 const SEM_SUPABASE =
-  "O Supabase ainda não está configurado. Preencha o .env.local para entrar.";
+  "O serviço de autenticação está indisponível no momento. Tente novamente em instantes.";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /** Origem real da requisição, para o link do e-mail voltar ao host certo. */
@@ -37,6 +38,9 @@ function traduzirErro(mensagem: string): string {
     return "Muitas tentativas em pouco tempo. Espere alguns minutos.";
   }
   if (m.includes("email address") && m.includes("invalid")) return "E-mail inválido.";
+  if (m.includes("database error saving new user")) {
+    return "Não foi possível concluir o cadastro. Confira se o CPF ou o e-mail já está em uso.";
+  }
   return "Não foi possível concluir. Tente novamente.";
 }
 
@@ -55,7 +59,7 @@ export async function entrar(_estado: Estado, form: FormData): Promise<Estado> {
   if (error) return { erro: traduzirErro(error.message) };
 
   const cargo = await cargoDoUsuario();
-  const seguro = destino.startsWith("/") && !destino.startsWith("//") ? destino : null;
+  const seguro = destinoSeguro(destino);
   redirect(seguro ?? homePorCargo(cargo));
 }
 
@@ -77,7 +81,7 @@ export async function entrarDemo(_estado: Estado, form: FormData): Promise<Estad
   if (error) return { erro: traduzirErro(error.message) };
 
   const destino = texto(form, "next");
-  const seguro = destino.startsWith("/") && !destino.startsWith("//") ? destino : null;
+  const seguro = destinoSeguro(destino);
   redirect(seguro ?? homePorCargo(await cargoDoUsuario()));
 }
 
@@ -100,20 +104,22 @@ export async function cadastrar(_estado: Estado, form: FormData): Promise<Estado
   if (senha.length < 6) return { erro: "A senha precisa de pelo menos 6 caracteres." };
   if (senha !== confirmar) return { erro: "As senhas não conferem." };
 
+  const destino = destinoSeguro(texto(form, "next")) ?? "/cliente";
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password: senha,
     options: {
       data: { nome, cpf: cpf || null, telefone: telefone || null },
-      emailRedirectTo: `${await origem()}/auth/callback?next=/cliente`,
+      emailRedirectTo: `${await origem()}/auth/callback?next=${encodeURIComponent(destino)}`,
     },
   });
 
   if (error) return { erro: traduzirErro(error.message) };
 
   // Sem confirmação de e-mail, o Supabase devolve sessão na hora.
-  if (data.session) redirect("/cliente");
+  if (data.session) redirect(destino);
 
   return {
     ok: `Enviamos um link de confirmação para ${email}. Abra o e-mail para ativar a conta.`,

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClientOpcional } from "@/lib/supabase/server";
 import { ILPIS_DEMO } from "./demo";
 import type { IlpiCompleta, IlpiPublica } from "./tipos";
@@ -55,10 +56,10 @@ function mapear(linha: LinhaIlpi): IlpiPublica {
   };
 }
 
-/** Lista o diretório. Sem banco (ou com erro), cai no catálogo demonstrativo. */
-export async function listarIlpis(): Promise<IlpiPublica[]> {
+/** Lista o diretório informando se veio do banco ou do catálogo demonstrativo. */
+export async function listarIlpisComOrigem(): Promise<{ casas: IlpiPublica[]; demo: boolean }> {
   const supabase = await createClientOpcional();
-  if (!supabase) return ILPIS_DEMO;
+  if (!supabase) return { casas: ILPIS_DEMO, demo: true };
 
   try {
     const { data, error } = await supabase
@@ -66,11 +67,17 @@ export async function listarIlpis(): Promise<IlpiPublica[]> {
       .select("*")
       .order("nome", { ascending: true });
 
-    if (error || !data || data.length === 0) return ILPIS_DEMO;
-    return (data as LinhaIlpi[]).map(mapear);
+    if (error || !data || data.length === 0) return { casas: ILPIS_DEMO, demo: true };
+    return { casas: (data as LinhaIlpi[]).map(mapear), demo: false };
   } catch {
-    return ILPIS_DEMO;
+    return { casas: ILPIS_DEMO, demo: true };
   }
+}
+
+/** Lista o diretório. Sem banco (ou com erro), cai no catálogo demonstrativo. */
+export async function listarIlpis(): Promise<IlpiPublica[]> {
+  const { casas } = await listarIlpisComOrigem();
+  return casas;
 }
 
 function demoCompleta(slug: string): IlpiCompleta | null {
@@ -87,8 +94,8 @@ function demoCompleta(slug: string): IlpiCompleta | null {
   };
 }
 
-/** Perfil completo de uma casa. null = não existe (a página chama notFound). */
-export async function buscarIlpi(slug: string): Promise<IlpiCompleta | null> {
+/** Perfil completo de uma casa (memoizado entre generateMetadata e página). null = notFound. */
+export const buscarIlpi = cache(async (slug: string): Promise<IlpiCompleta | null> => {
   const supabase = await createClientOpcional();
   if (!supabase) return demoCompleta(slug);
 
@@ -99,7 +106,9 @@ export async function buscarIlpi(slug: string): Promise<IlpiCompleta | null> {
       .eq("slug", slug)
       .maybeSingle<LinhaIlpi>();
 
-    if (error || !data) return demoCompleta(slug);
+    if (error) return demoCompleta(slug);
+    // Com banco ativo e consulta bem-sucedida, casa ausente ou despublicada deve retornar 404.
+    if (!data) return null;
 
     const [fotos, planos, avaliacoes] = await Promise.all([
       supabase
@@ -142,4 +151,4 @@ export async function buscarIlpi(slug: string): Promise<IlpiCompleta | null> {
   } catch {
     return demoCompleta(slug);
   }
-}
+});

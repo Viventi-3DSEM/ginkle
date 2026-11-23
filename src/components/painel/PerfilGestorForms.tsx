@@ -29,7 +29,9 @@ export function PerfilDadosForm({
   dataNascimento,
   hojeIso,
 }: PerfilProps) {
+  const [nomeValor, setNomeValor] = useState(nome);
   const [telValor, setTelValor] = useState(telefone ? formatarTelefone(telefone) : "");
+  const [nascValor, setNascValor] = useState(dataNascimento ?? "");
   const [estado, acao, salvando] = useActionState<Estado, FormData>(atualizarPerfil, {});
 
   return (
@@ -55,7 +57,8 @@ export function PerfilDadosForm({
             maxLength={120}
             autoComplete="name"
             enterKeyHint="next"
-            defaultValue={nome}
+            value={nomeValor}
+            onChange={(e) => setNomeValor(e.target.value)}
             className={inputClass}
           />
         </div>
@@ -90,7 +93,8 @@ export function PerfilDadosForm({
               autoComplete="bday"
               max={hojeIso}
               enterKeyHint="done"
-              defaultValue={dataNascimento ?? ""}
+              value={nascValor}
+              onChange={(e) => setNascValor(e.target.value)}
               className={inputClass}
             />
           </div>

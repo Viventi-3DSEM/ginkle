@@ -12,11 +12,11 @@
  * É idempotente: rodar de novo não duplica. Para desfazer, rode
  * supabase/demo-limpar.sql no SQL Editor.
  *
- * Sobre `sincronizado_em_servidor`: no app quem grava é o servidor. Aqui o
- * script preenche na mão (segundos depois do registro), porque é dado de
- * demonstração e o valor padrão (now()) marcaria tudo como "sincronizado com
- * atraso". Um registro de propósito fica com 25 minutos de atraso, para a
- * sinalização aparecer no painel.
+ * Sobre `sincronizado_em_servidor`: a migration 0014 trava essa coluna no banco
+ * para impedir falsificação via API (núcleo antifraude). Por isso este script
+ * cria os registros sem enviar `sincronizado_em_servidor` (11 dentro do prazo e
+ * 1 com 25 minutos de atraso). Para espalhar as datas ao longo de 7 dias na
+ * apresentação, rode `supabase/demo-datas-historicas.sql` no SQL Editor.
  */
 
 import { readFileSync } from "node:fs";
@@ -444,12 +444,11 @@ async function main() {
 
         for (let i = 0; i < 12; i += 1) {
           const modelo = MODELOS_REGISTRO[i % MODELOS_REGISTRO.length];
-          const quando = new Date(agora - Math.floor(i / 2) * 86400000);
-          quando.setHours(i % 2 === 0 ? 8 : 15, i % 2 === 0 ? 20 : 40, 0, 0);
-          if (quando.getTime() > agora - 3600000) quando.setDate(quando.getDate() - 1);
-
-          // o registro 3 sai com 25 minutos de atraso, para a sinalização aparecer
-          const atrasoSegundos = i === 3 ? 25 * 60 : 25 + i * 7;
+          // A migration 0014 trava `sincronizado_em_servidor` no servidor (`now()`).
+          // Mantemos 11 registros dentro da janela pontual (<10 min) e o índice 3 com
+          // 25 min de atraso para acionar o alerta de integridade no painel e no portal.
+          const atrasoSegundos = i === 3 ? 25 * 60 : 30 + i * 35;
+          const quando = new Date(agora - atrasoSegundos * 1000);
 
           linhas.push({
             id_residente: alvos[i % alvos.length].id_residente,
@@ -458,9 +457,6 @@ async function main() {
             titulo: modelo.titulo,
             descricao: modelo.descricao,
             criado_em_dispositivo: quando.toISOString(),
-            sincronizado_em_servidor: new Date(
-              quando.getTime() + atrasoSegundos * 1000,
-            ).toISOString(),
           });
         }
 
@@ -468,7 +464,7 @@ async function main() {
           (await funcionario.cliente.from("registro_assistencial").insert(linhas)).error,
           `registros ${casa.slug}`,
         );
-        log(`casa "${casa.nome}": ${linhas.length} registros nos últimos 7 dias`);
+        log(`casa "${casa.nome}": ${linhas.length} registros (11 pontuais, 1 atrasado)`);
       } else {
         log(`casa "${casa.nome}": registros já existiam`);
       }
@@ -522,9 +518,9 @@ async function main() {
       }
     }
 
-    // ---- solicitação de entrada pendente (segunda casa) + uma já respondida
+    // ---- solicitação de entrada pendente (apenas em casas publicadas, conforme 0014)
     const solicitante = familiares[indice === 0 ? 1 : 0];
-    if (solicitante) {
+    if (solicitante && (casa.publicado ?? true)) {
       const { data: dadosUsuario } = await solicitante.cliente.auth.getUser();
       const { count: adesoes } = await gestor
         .from("adesao_ilpi")

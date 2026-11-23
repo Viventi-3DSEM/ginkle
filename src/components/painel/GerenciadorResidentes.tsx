@@ -85,6 +85,8 @@ function CardSolicitacaoPendente({
 }) {
   const [aprovando, setAprovando] = useState(false);
   const [residenteEscolhido, setResidenteEscolhido] = useState("");
+  const [parentescoAprov, setParentescoAprov] = useState("");
+  const [respAprov, setRespAprov] = useState(false);
   const resId = useId();
   const parId = useId();
   const respId = useId();
@@ -94,6 +96,9 @@ function CardSolicitacaoPendente({
       const res = await responderSolicitacao(prev, formData);
       if (res.ok) {
         setAprovando(false);
+        setResidenteEscolhido("");
+        setParentescoAprov("");
+        setRespAprov(false);
         onAviso(res.ok);
       }
       return res;
@@ -193,6 +198,8 @@ function CardSolicitacaoPendente({
                   name="parentesco"
                   required
                   maxLength={60}
+                  value={parentescoAprov}
+                  onChange={(e) => setParentescoAprov(e.target.value)}
                   placeholder="Ex.: Filha, Filho, Sobrinho"
                   className={inputClass}
                 />
@@ -209,6 +216,8 @@ function CardSolicitacaoPendente({
                 id={respId}
                 name="responsavelPrincipal"
                 type="checkbox"
+                checked={respAprov}
+                onChange={(e) => setRespAprov(e.target.checked)}
                 style={{ accentColor: "var(--primary)" }}
                 className="size-4 cursor-pointer"
               />
@@ -260,8 +269,16 @@ function CardResidente({
 }) {
   const [editando, setEditando] = useState(false);
   const [vinculando, setVinculando] = useState(false);
+  const [nomeEdit, setNomeEdit] = useState(residente.nome);
   const [cpfEdit, setCpfEdit] = useState(() => formatarCpf(residente.cpf));
-  const [formFamKey, setFormFamKey] = useState(0);
+  const [statusEdit, setStatusEdit] = useState(residente.status);
+  const [nascEdit, setNascEdit] = useState(residente.nascimento);
+  const [sexoEdit, setSexoEdit] = useState(residente.sexo);
+  const [ingEdit, setIngEdit] = useState(residente.ingresso);
+  const [obsEdit, setObsEdit] = useState(residente.observacoesMedicas ?? "");
+  const [emailFam, setEmailFam] = useState("");
+  const [parentescoFam, setParentescoFam] = useState("");
+  const [respFam, setRespFam] = useState(false);
 
   const anos = idade(residente.nascimento);
 
@@ -282,7 +299,9 @@ function CardResidente({
       const res = await vincularFamiliar(prev, formData);
       if (res.ok) {
         setVinculando(false);
-        setFormFamKey((k) => k + 1);
+        setEmailFam("");
+        setParentescoFam("");
+        setRespFam(false);
         onAviso(res.ok);
       }
       return res;
@@ -341,7 +360,13 @@ function CardResidente({
             type="button"
             onClick={() => {
               setVinculando(false);
+              setNomeEdit(residente.nome);
               setCpfEdit(formatarCpf(residente.cpf));
+              setStatusEdit(residente.status);
+              setNascEdit(residente.nascimento);
+              setSexoEdit(residente.sexo);
+              setIngEdit(residente.ingresso);
+              setObsEdit(residente.observacoesMedicas ?? "");
               setEditando((v) => !v);
             }}
             aria-expanded={editando}
@@ -389,7 +414,8 @@ function CardResidente({
                 name="nome"
                 required
                 maxLength={120}
-                defaultValue={residente.nome}
+                value={nomeEdit}
+                onChange={(e) => setNomeEdit(e.target.value)}
                 className={inputClass}
               />
             </div>
@@ -417,7 +443,8 @@ function CardResidente({
               <select
                 id={`${baseId}-status`}
                 name="status"
-                defaultValue={residente.status}
+                value={statusEdit}
+                onChange={(e) => setStatusEdit(e.target.value)}
                 className={cn(inputClass, "bg-card")}
               >
                 <option value="ATIVO">Ativo</option>
@@ -436,7 +463,8 @@ function CardResidente({
                 name="nascimento"
                 type="date"
                 required
-                defaultValue={residente.nascimento}
+                value={nascEdit}
+                onChange={(e) => setNascEdit(e.target.value)}
                 className={inputClass}
               />
             </div>
@@ -448,7 +476,8 @@ function CardResidente({
               <select
                 id={`${baseId}-sexo`}
                 name="sexo"
-                defaultValue={residente.sexo}
+                value={sexoEdit}
+                onChange={(e) => setSexoEdit(e.target.value)}
                 className={cn(inputClass, "bg-card")}
               >
                 <option value="F">Feminino</option>
@@ -466,7 +495,8 @@ function CardResidente({
                 name="ingresso"
                 type="date"
                 required
-                defaultValue={residente.ingresso}
+                value={ingEdit}
+                onChange={(e) => setIngEdit(e.target.value)}
                 className={inputClass}
               />
             </div>
@@ -480,7 +510,8 @@ function CardResidente({
                 name="observacoesMedicas"
                 rows={3}
                 maxLength={2000}
-                defaultValue={residente.observacoesMedicas ?? ""}
+                value={obsEdit}
+                onChange={(e) => setObsEdit(e.target.value)}
                 placeholder="Alergias, medicamentos contínuos, restrições alimentares."
                 className={cn(inputClass, "resize-y")}
               />
@@ -517,7 +548,6 @@ function CardResidente({
 
       {vinculando ? (
         <form
-          key={formFamKey}
           action={acaoVincular}
           className="mt-5 space-y-4 border-t border-border pt-5"
         >
@@ -537,6 +567,8 @@ function CardResidente({
                 autoCorrect="off"
                 autoCapitalize="none"
                 spellCheck={false}
+                value={emailFam}
+                onChange={(e) => setEmailFam(e.target.value)}
                 placeholder="familiar@email.com"
                 className={inputClass}
               />
@@ -551,6 +583,8 @@ function CardResidente({
                 name="parentesco"
                 required
                 maxLength={60}
+                value={parentescoFam}
+                onChange={(e) => setParentescoFam(e.target.value)}
                 placeholder="Ex.: Filha, Neto, Cônjuge"
                 className={inputClass}
               />
@@ -565,6 +599,8 @@ function CardResidente({
               id={`${baseId}-fam-resp`}
               name="responsavelPrincipal"
               type="checkbox"
+              checked={respFam}
+              onChange={(e) => setRespFam(e.target.checked)}
               style={{ accentColor: "var(--primary)" }}
               className="size-4 cursor-pointer"
             />
@@ -666,8 +702,15 @@ export default function GerenciadorResidentes({
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>("ATIVOS");
   const [busca, setBusca] = useState("");
   const [mostrarFormNovo, setMostrarFormNovo] = useState(false);
+  const [casaNova, setCasaNova] = useState<string>(
+    casaValidaInicial !== "TODAS" ? casaValidaInicial : (casas[0]?.id ?? ""),
+  );
+  const [nomeNovo, setNomeNovo] = useState("");
   const [cpfNovo, setCpfNovo] = useState("");
-  const [formNovoKey, setFormNovoKey] = useState(0);
+  const [sexoNovo, setSexoNovo] = useState("F");
+  const [nascNovo, setNascNovo] = useState("");
+  const [ingNovo, setIngNovo] = useState(hojeIso);
+  const [obsNova, setObsNova] = useState("");
   const [avisoOk, setAvisoOk] = useState("");
   const [alvoModal, setAlvoModal] = useState<ModalAlvo | null>(null);
   const [erroDialogo, setErroDialogo] = useState("");
@@ -686,8 +729,12 @@ export default function GerenciadorResidentes({
       if (res.ok) {
         setAvisoOk(res.ok);
         setMostrarFormNovo(false);
+        setNomeNovo("");
         setCpfNovo("");
-        setFormNovoKey((k) => k + 1);
+        setSexoNovo("F");
+        setNascNovo("");
+        setIngNovo(hojeIso);
+        setObsNova("");
       }
       return res;
     },
@@ -713,6 +760,13 @@ export default function GerenciadorResidentes({
     {},
   );
 
+  const processandoRef = useRef(processandoModal);
+  useEffect(() => {
+    processandoRef.current = processandoModal;
+    const dialog = dialogRef.current;
+    if (dialog) dialog.setAttribute("closedby", processandoModal ? "none" : "any");
+  }, [processandoModal]);
+
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
@@ -735,7 +789,7 @@ export default function GerenciadorResidentes({
       pressionouFora = fora(e);
     };
     const onUp = (e: PointerEvent) => {
-      if (pressionouFora && fora(e)) dialog.close();
+      if (!processandoRef.current && pressionouFora && fora(e)) dialog.close();
       pressionouFora = false;
     };
 
@@ -785,8 +839,6 @@ export default function GerenciadorResidentes({
     });
   }, [residentesDaCasaFiltro, filtroStatus, busca]);
 
-  const casaPadraoForm = filtroCasa !== "TODAS" ? filtroCasa : (casas[0]?.id ?? "");
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -824,7 +876,10 @@ export default function GerenciadorResidentes({
                   key={casa.id}
                   type="button"
                   aria-pressed={ativo}
-                  onClick={() => setFiltroCasa(casa.id)}
+                  onClick={() => {
+                    setFiltroCasa(casa.id);
+                    setCasaNova(casa.id);
+                  }}
                   className={cn(
                     "inline-flex min-h-9 items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-medium transition-colors",
                     ativo
@@ -892,7 +947,6 @@ export default function GerenciadorResidentes({
           </h2>
 
           <form
-            key={`${formNovoKey}-${casaPadraoForm}`}
             aria-labelledby={`${formId}-titulo`}
             action={acaoCriar}
             className="mt-5 space-y-5"
@@ -906,7 +960,8 @@ export default function GerenciadorResidentes({
                   id={`${formId}-casa`}
                   name="casaId"
                   required
-                  defaultValue={casaPadraoForm}
+                  value={filtroCasa !== "TODAS" ? filtroCasa : casaNova}
+                  onChange={(e) => setCasaNova(e.target.value)}
                   className={cn(inputClass, "bg-card")}
                 >
                   {casas.map((casa) => (
@@ -930,6 +985,8 @@ export default function GerenciadorResidentes({
                   name="nome"
                   required
                   maxLength={120}
+                  value={nomeNovo}
+                  onChange={(e) => setNomeNovo(e.target.value)}
                   placeholder="Nome do morador"
                   className={inputClass}
                 />
@@ -960,7 +1017,8 @@ export default function GerenciadorResidentes({
                   id={`${formId}-sexo`}
                   name="sexo"
                   required
-                  defaultValue="F"
+                  value={sexoNovo}
+                  onChange={(e) => setSexoNovo(e.target.value)}
                   className={cn(inputClass, "bg-card")}
                 >
                   <option value="F">Feminino</option>
@@ -979,6 +1037,8 @@ export default function GerenciadorResidentes({
                   type="date"
                   required
                   max={hojeIso}
+                  value={nascNovo}
+                  onChange={(e) => setNascNovo(e.target.value)}
                   className={inputClass}
                 />
               </div>
@@ -992,7 +1052,8 @@ export default function GerenciadorResidentes({
                   name="ingresso"
                   type="date"
                   required
-                  defaultValue={hojeIso}
+                  value={ingNovo}
+                  onChange={(e) => setIngNovo(e.target.value)}
                   className={inputClass}
                 />
               </div>
@@ -1006,6 +1067,8 @@ export default function GerenciadorResidentes({
                   name="observacoesMedicas"
                   rows={3}
                   maxLength={2000}
+                  value={obsNova}
+                  onChange={(e) => setObsNova(e.target.value)}
                   placeholder="Alergias, medicamentos contínuos, restrições alimentares."
                   className={cn(inputClass, "resize-y")}
                 />
@@ -1151,6 +1214,9 @@ export default function GerenciadorResidentes({
         ref={dialogRef}
         aria-labelledby={tituloDialogId}
         aria-describedby={descDialogId}
+        onCancel={(e) => {
+          if (processandoModal) e.preventDefault();
+        }}
         onClose={(e) => {
           e.currentTarget.returnValue = "";
           setAlvoModal(null);

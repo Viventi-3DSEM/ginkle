@@ -18,7 +18,7 @@ import { slugificar } from "@/lib/validacao/slug";
 import { cn } from "@/lib/utils";
 
 const inputClass =
-  "w-full border-b border-input bg-transparent py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-brand-strong";
+  "w-full border-b border-input bg-transparent py-2.5 text-base outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-brand-strong sm:text-sm";
 
 const labelClass =
   "mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground";
@@ -107,14 +107,15 @@ export default function CasaForm({
   const inicial = valores ?? VAZIO;
   const inputFotosRef = useRef<HTMLInputElement>(null);
 
-  const [nome, setNome] = useState(inicial.nome);
-  const [slug, setSlug] = useState(inicial.slug);
+  const [campos, setCampos] = useState<ValoresCasa>(inicial);
   const [slugTravado, setSlugTravado] = useState(Boolean(inicial.slug));
-  const [cnpj, setCnpj] = useState(inicial.cnpj);
-  const [telefone, setTelefone] = useState(inicial.telefone);
   const [fotosFila, setFotosFila] = useState<FotoNaFila[]>([]);
   const [erroFoto, setErroFoto] = useState("");
   const [enviandoFotos, setEnviandoFotos] = useState(false);
+
+  function atualizarCampo<K extends keyof ValoresCasa>(campo: K, valor: ValoresCasa[K]) {
+    setCampos((atual) => ({ ...atual, [campo]: valor }));
+  }
 
   const fotosFilaRef = useRef<FotoNaFila[]>([]);
   useEffect(() => {
@@ -134,6 +135,7 @@ export default function CasaForm({
       const res = await acao(prev, formData);
       if (res.casaId) {
         const filaAtual = fotosFilaRef.current;
+        let falhasFotos = 0;
         if (filaAtual.length > 0) {
           setEnviandoFotos(true);
           const enviadas: { url: string; legenda?: string | null }[] = [];
@@ -141,14 +143,23 @@ export default function CasaForm({
             const up = await enviarImagemStorage("fotos-casas", res.casaId, item.arquivo);
             if (up.url) {
               enviadas.push({ url: up.url, legenda: item.legenda || null });
+            } else {
+              falhasFotos += 1;
             }
           }
           if (enviadas.length > 0) {
-            await registrarFotosCasa(res.casaId, enviadas);
+            const reg = await registrarFotosCasa(res.casaId, enviadas);
+            if (reg.erro) {
+              falhasFotos += enviadas.length;
+            }
           }
           setEnviandoFotos(false);
         }
-        router.push(`/gerente/casas/${res.casaId}`);
+        const destino =
+          falhasFotos > 0
+            ? `/gerente/casas/${res.casaId}?fotosErro=${falhasFotos}`
+            : `/gerente/casas/${res.casaId}`;
+        router.push(destino);
       }
       return res;
     },
@@ -200,7 +211,8 @@ export default function CasaForm({
     });
   }
 
-  const slugAtual = slugTravado ? slug : slugificar(nome);
+  const slugAtual = slugTravado ? campos.slug : slugificar(campos.nome);
+  const slugPreview = slugificar(slugAtual);
   const ocupado = enviando || enviandoFotos;
 
   return (
@@ -232,8 +244,8 @@ export default function CasaForm({
               rotulo="Nome da instituição"
               className="sm:col-span-2"
               placeholder="ILPI Vida Plena"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
+              value={campos.nome}
+              onChange={(e) => atualizarCampo("nome", e.target.value)}
             />
 
             <Campo
@@ -242,10 +254,11 @@ export default function CasaForm({
               placeholder="vida-plena"
               value={slugAtual}
               onChange={(e) => {
-                setSlugTravado(true);
-                setSlug(e.target.value);
+                const v = e.target.value;
+                setSlugTravado(v.trim().length > 0);
+                atualizarCampo("slug", v);
               }}
-              dica={`ginkle.me/casas/${slugAtual || "sua-casa"}`}
+              dica={`ginkle.me/casas/${slugPreview || "sua-casa"}`}
             />
 
             <div>
@@ -258,8 +271,8 @@ export default function CasaForm({
                 inputMode="numeric"
                 placeholder="00.000.000/0000-00"
                 maxLength={18}
-                value={cnpj}
-                onChange={(e) => setCnpj(formatarCnpj(e.target.value))}
+                value={campos.cnpj}
+                onChange={(e) => atualizarCampo("cnpj", formatarCnpj(e.target.value))}
                 className={inputClass}
               />
             </div>
@@ -274,8 +287,8 @@ export default function CasaForm({
                 inputMode="tel"
                 placeholder="(13) 3474-1010"
                 maxLength={15}
-                value={telefone}
-                onChange={(e) => setTelefone(formatarTelefone(e.target.value))}
+                value={campos.telefone}
+                onChange={(e) => atualizarCampo("telefone", formatarTelefone(e.target.value))}
                 className={inputClass}
               />
             </div>
@@ -285,14 +298,16 @@ export default function CasaForm({
               rotulo="E-mail de contato"
               type="email"
               placeholder="contato@suacasa.com.br"
-              defaultValue={inicial.email}
+              value={campos.email}
+              onChange={(e) => atualizarCampo("email", e.target.value)}
             />
 
             <Campo
               id="site"
               rotulo="Site (opcional)"
               placeholder="suacasa.com.br"
-              defaultValue={inicial.site}
+              value={campos.site}
+              onChange={(e) => atualizarCampo("site", e.target.value)}
             />
           </div>
         </section>
@@ -305,21 +320,24 @@ export default function CasaForm({
               rotulo="Logradouro e número"
               className="sm:col-span-6"
               placeholder="Av. Presidente Costa e Silva, 1200"
-              defaultValue={inicial.endereco}
+              value={campos.endereco}
+              onChange={(e) => atualizarCampo("endereco", e.target.value)}
             />
             <Campo
               id="cidade"
               rotulo="Cidade"
               className="sm:col-span-3"
               placeholder="Praia Grande"
-              defaultValue={inicial.cidade}
+              value={campos.cidade}
+              onChange={(e) => atualizarCampo("cidade", e.target.value)}
             />
             <Campo
               id="bairro"
               rotulo="Bairro"
               className="sm:col-span-2"
               placeholder="Boqueirão"
-              defaultValue={inicial.bairro}
+              value={campos.bairro}
+              onChange={(e) => atualizarCampo("bairro", e.target.value)}
             />
             <Campo
               id="uf"
@@ -327,7 +345,8 @@ export default function CasaForm({
               className="sm:col-span-1"
               maxLength={2}
               placeholder="SP"
-              defaultValue={inicial.uf}
+              value={campos.uf}
+              onChange={(e) => atualizarCampo("uf", e.target.value.toUpperCase())}
             />
           </div>
         </section>
@@ -341,7 +360,8 @@ export default function CasaForm({
               className="sm:col-span-2"
               inputMode="numeric"
               placeholder="0"
-              defaultValue={inicial.vagas}
+              value={campos.vagas}
+              onChange={(e) => atualizarCampo("vagas", e.target.value)}
             />
             <Campo
               id="destaque"
@@ -349,14 +369,16 @@ export default function CasaForm({
               className="sm:col-span-4"
               placeholder="Mais procurada"
               maxLength={40}
-              defaultValue={inicial.destaque}
+              value={campos.destaque}
+              onChange={(e) => atualizarCampo("destaque", e.target.value)}
             />
             <Campo
               id="tags"
               rotulo="Cuidados oferecidos"
               className="sm:col-span-6"
               placeholder="Cuidados 24h, Fisioterapia, Visitas diárias"
-              defaultValue={inicial.tags}
+              value={campos.tags}
+              onChange={(e) => atualizarCampo("tags", e.target.value)}
               dica="Até 6, separados por vírgula."
             />
 
@@ -370,7 +392,8 @@ export default function CasaForm({
                 rows={4}
                 maxLength={2000}
                 placeholder="Como é a rotina, a equipe e a estrutura da casa."
-                defaultValue={inicial.descricao}
+                value={campos.descricao}
+                onChange={(e) => atualizarCampo("descricao", e.target.value)}
                 className={cn(inputClass, "resize-y")}
               />
             </div>

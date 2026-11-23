@@ -7,7 +7,7 @@ import { supabaseConfigurado } from "@/lib/supabase/env";
 export type EstadoAcao = { erro?: string; ok?: string; id?: string };
 
 const SEM_SUPABASE =
-  "O Supabase ainda não está configurado. Preencha o .env.local para continuar.";
+  "O serviço de dados está indisponível no momento. Tente novamente em instantes.";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function texto(form: FormData, campo: string): string {
@@ -80,6 +80,7 @@ export async function solicitarAdesao(
   revalidatePath("/cliente");
   revalidatePath("/cliente/solicitacoes");
   revalidatePath("/gerente");
+  revalidatePath("/gerente/residentes");
   revalidatePath(`/gerente/casas/${casaId}`);
 
   return {
@@ -128,6 +129,7 @@ export async function cancelarAdesao(
   revalidatePath("/cliente");
   revalidatePath("/cliente/solicitacoes");
   revalidatePath("/gerente");
+  revalidatePath("/gerente/residentes");
   revalidatePath(`/gerente/casas/${atualizada[0].id_ilpi}`);
 
   return {

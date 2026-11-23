@@ -150,6 +150,12 @@ const idsDasMinhasCasas = cache(async (): Promise<string[]> => {
   return [...new Set((data ?? []).map((linha) => linha.id_ilpi as string))];
 });
 
+/** Quantidade leve de casas gerenciadas (1 consulta, para páginas que só precisam da contagem). */
+export async function contarMinhasCasas(): Promise<number> {
+  const ids = await idsDasMinhasCasas();
+  return ids.length;
+}
+
 export async function painelDoGestor(): Promise<PainelDoGestor> {
   const vazio: PainelDoGestor = {
     casas: [],
@@ -243,9 +249,31 @@ export async function painelDoGestor(): Promise<PainelDoGestor> {
     .filter((r) => idsResidentesSet.has(r.id_residente))
     .length;
 
-  const linhaRegistros = ((ultimosReg.data ?? []) as unknown as LinhaRegistro[])
+  let brutosUltimos = (ultimosReg.data ?? []) as unknown as LinhaRegistro[];
+  let linhaRegistros = brutosUltimos
     .filter((r) => idsResidentesSet.has(r.id_residente))
     .slice(0, 8);
+
+  // Se o gestor também tiver vínculo em outra casa e o limite global (20) descartou linhas,
+  // refaz a busca filtrada pelos residentes das casas gerenciadas para não truncar.
+  if (
+    brutosUltimos.length === 20 &&
+    linhaRegistros.length < 8 &&
+    idsResidentesSet.size > 0 &&
+    brutosUltimos.some((r) => !idsResidentesSet.has(r.id_residente))
+  ) {
+    const { data: filtrado } = await supabase
+      .from("registro_assistencial")
+      .select(
+        "id_registro, id_residente, tipo, titulo, criado_em_dispositivo, sincronizado_em_servidor, vinculo_ilpi(usuario(nome))",
+      )
+      .in("id_residente", [...idsResidentesSet])
+      .gte("criado_em_dispositivo", desde)
+      .order("criado_em_dispositivo", { ascending: false })
+      .limit(8);
+    brutosUltimos = (filtrado ?? []) as unknown as LinhaRegistro[];
+    linhaRegistros = brutosUltimos.slice(0, 8);
+  }
 
   const nomeDoResidente = new Map(
     listaResidentes.map((r) => [r.id_residente, r.nome]),
@@ -399,8 +427,7 @@ export const casaDoGestor = cache(async (id: string): Promise<CasaCompleta | nul
         .from("avaliacao_publica")
         .select("nota, comentario, autor, data_avaliacao")
         .eq("id_ilpi", id)
-        .order("data_avaliacao", { ascending: false })
-        .limit(20),
+        .order("data_avaliacao", { ascending: false }),
     ]);
 
   const linha = casa as unknown as LinhaCasa & {
@@ -512,12 +539,14 @@ export const casaDoGestor = cache(async (id: string): Promise<CasaCompleta | nul
       comentario: string | null;
       autor: string | null;
       data_avaliacao: string;
-    }[]).map((a) => ({
-      nota: numero(a.nota),
-      comentario: a.comentario,
-      autor: a.autor ?? "Familiar",
-      quando: a.data_avaliacao,
-    })),
+    }[])
+      .slice(0, 20)
+      .map((a) => ({
+        nota: numero(a.nota),
+        comentario: a.comentario,
+        autor: a.autor ?? "Familiar",
+        quando: a.data_avaliacao,
+      })),
   };
 });
 
@@ -874,6 +903,7 @@ export type CandidatoAssinante = {
   email: string;
   casaId: string;
   origem: "FAMILIAR" | "SOLICITANTE";
+  jaTemAssinaturaAtiva: boolean;
 };
 
 export type PlanoOpcaoFinanceiro = {
@@ -937,7 +967,8 @@ export async function financeiroDoGestor(): Promise<FinanceiroDoGestor> {
       supabase
         .from("adesao_ilpi")
         .select("id_ilpi, id_usuario, usuario(nome, email)")
-        .in("id_ilpi", ids),
+        .in("id_ilpi", ids)
+        .in("status", ["PENDENTE", "APROVADA"]),
       supabase
         .from("assinatura")
         .select(
@@ -985,6 +1016,20 @@ export async function financeiroDoGestor(): Promise<FinanceiroDoGestor> {
   }[];
   const casaPorResidente = new Map(linhasRes.map((r) => [r.id_residente, r.id_ilpi]));
 
+  const linhasAssinaturas = ((assinaturasRes.data ?? []) as unknown as {
+    id_assinatura: string;
+    id_usuario: string;
+    id_plano: string;
+    status: string;
+    data_inicio: string;
+    data_fim: string | null;
+    usuario: { nome: string; email: string; telefone: string | null } | null;
+  }[]).filter((a) => planoPorId.has(a.id_plano));
+
+  const usuariosComAssinaturaAtiva = new Set(
+    linhasAssinaturas.filter((a) => a.status === "ATIVA").map((a) => a.id_usuario),
+  );
+
   // Deduplica por (casaId, usuarioId) dando prioridade a FAMILIAR sobre SOLICITANTE.
   const candidatosMap = new Map<string, CandidatoAssinante>();
 
@@ -1001,6 +1046,7 @@ export async function financeiroDoGestor(): Promise<FinanceiroDoGestor> {
       email: f.usuario.email,
       casaId,
       origem: "FAMILIAR",
+      jaTemAssinaturaAtiva: usuariosComAssinaturaAtiva.has(f.id_usuario),
     });
   }
 
@@ -1018,21 +1064,12 @@ export async function financeiroDoGestor(): Promise<FinanceiroDoGestor> {
         email: a.usuario.email,
         casaId: a.id_ilpi,
         origem: "SOLICITANTE",
+        jaTemAssinaturaAtiva: usuariosComAssinaturaAtiva.has(a.id_usuario),
       });
     }
   }
 
   const candidatos = [...candidatosMap.values()].sort((a, b) => a.nome.localeCompare(b.nome));
-
-  const linhasAssinaturas = ((assinaturasRes.data ?? []) as unknown as {
-    id_assinatura: string;
-    id_usuario: string;
-    id_plano: string;
-    status: string;
-    data_inicio: string;
-    data_fim: string | null;
-    usuario: { nome: string; email: string; telefone: string | null } | null;
-  }[]).filter((a) => planoPorId.has(a.id_plano));
 
   const idsAssinaturasSet = new Set(linhasAssinaturas.map((a) => a.id_assinatura));
   const faturasPorAssinatura = new Map<string, FaturaDoGestor[]>();
@@ -1146,10 +1183,18 @@ export type AuditoriaDoGestor = {
   casas: { id: string; nome: string; slug: string }[];
   registros: RegistroAuditoria[];
   acoes: AcaoAuditoria[];
+  registrosLimitados: boolean;
+  acoesLimitadas: boolean;
 };
 
 export async function auditoriaDoGestor(): Promise<AuditoriaDoGestor> {
-  const vazio: AuditoriaDoGestor = { casas: [], registros: [], acoes: [] };
+  const vazio: AuditoriaDoGestor = {
+    casas: [],
+    registros: [],
+    acoes: [],
+    registrosLimitados: false,
+    acoesLimitadas: false,
+  };
 
   const supabase = await createClientOpcional();
   if (!supabase) return vazio;
@@ -1204,8 +1249,7 @@ export async function auditoriaDoGestor(): Promise<AuditoriaDoGestor> {
     }
   }
 
-  const registros: RegistroAuditoria[] = [];
-  for (const r of (regRes.data ?? []) as unknown as {
+  type LinhaTimelineAuditoria = {
     id_registro: string;
     id_residente: string;
     tipo: string;
@@ -1216,7 +1260,29 @@ export async function auditoriaDoGestor(): Promise<AuditoriaDoGestor> {
     sincronizacao_atrasada: boolean;
     autor_nome: string | null;
     autor_cargo: string | null;
-  }[]) {
+  };
+
+  let brutosReg = (regRes.data ?? []) as unknown as LinhaTimelineAuditoria[];
+  // Se o gestor também tiver acesso a residentes de outra casa e o limite de 200 descartou linhas,
+  // refaz filtrado pelos residentes gerenciados.
+  if (
+    brutosReg.length === 200 &&
+    residentesPorId.size > 0 &&
+    brutosReg.some((r) => !residentesPorId.has(r.id_residente))
+  ) {
+    const { data: filtrado } = await supabase
+      .from("registro_timeline")
+      .select(
+        "id_registro, id_residente, tipo, titulo, descricao, criado_em_dispositivo, sincronizado_em_servidor, sincronizacao_atrasada, autor_nome, autor_cargo",
+      )
+      .in("id_residente", [...residentesPorId.keys()])
+      .order("criado_em_dispositivo", { ascending: false })
+      .limit(200);
+    brutosReg = (filtrado ?? []) as unknown as LinhaTimelineAuditoria[];
+  }
+
+  const registros: RegistroAuditoria[] = [];
+  for (const r of brutosReg) {
     const res = residentesPorId.get(r.id_residente);
     if (!res) continue;
     const casa = casaPorId.get(res.casaId);
@@ -1243,7 +1309,7 @@ export async function auditoriaDoGestor(): Promise<AuditoriaDoGestor> {
     });
   }
 
-  const acoes: AcaoAuditoria[] = ((logsRes.data ?? []) as unknown as {
+  const brutosLogs = (logsRes.data ?? []) as unknown as {
     id_log: string;
     id_usuario: string;
     id_ilpi: string | null;
@@ -1254,7 +1320,9 @@ export async function auditoriaDoGestor(): Promise<AuditoriaDoGestor> {
     criado_em_dispositivo: string;
     sincronizado_em_servidor: string;
     usuario: { nome: string; email: string } | null;
-  }[])
+  }[];
+
+  const acoes: AcaoAuditoria[] = brutosLogs
     .filter((l): l is typeof l & { id_ilpi: string } => Boolean(l.id_ilpi && casaPorId.has(l.id_ilpi)))
     .map((l) => ({
       id: l.id_log,
@@ -1270,7 +1338,13 @@ export async function auditoriaDoGestor(): Promise<AuditoriaDoGestor> {
       autorEmail: l.usuario?.email ?? "",
     }));
 
-  return { casas, registros, acoes };
+  return {
+    casas,
+    registros,
+    acoes,
+    registrosLimitados: brutosReg.length >= 200,
+    acoesLimitadas: brutosLogs.length >= 200,
+  };
 }
 
 export type VinculoPerfil = {
@@ -1299,21 +1373,7 @@ export async function perfilDoGestor(): Promise<PerfilDoGestor | null> {
   const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
   if (!supabase || !user) return null;
 
-  const [usuarioRes, vinculosRes] = await Promise.all([
-    supabase
-      .from("usuario")
-      .select("id_usuario, nome, email, avatar_url, cpf, telefone, data_nascimento, data_cadastro")
-      .eq("id_usuario", user.id)
-      .maybeSingle(),
-    supabase
-      .from("vinculo_ilpi")
-      .select("id_vinculo, id_ilpi, cargo, data_vinculo, ilpi(nome, cidade, uf)")
-      .eq("id_usuario", user.id)
-      .eq("ativo", true)
-      .order("data_vinculo", { ascending: true }),
-  ]);
-
-  const u = usuarioRes.data as unknown as {
+  type LinhaPerfil = {
     id_usuario: string;
     nome: string;
     email: string;
@@ -1322,7 +1382,32 @@ export async function perfilDoGestor(): Promise<PerfilDoGestor | null> {
     telefone: string | null;
     data_nascimento: string | null;
     data_cadastro: string;
-  } | null;
+  };
+
+  // Usa a RPC meu_perfil() (migration 0014, que protege cpf/data_nascimento por coluna em usuario).
+  // Mantém fallback automático para o select direto caso o banco ainda esteja antes da 0014.
+  const [rpcRes, vinculosRes] = await Promise.all([
+    supabase.rpc("meu_perfil"),
+    supabase
+      .from("vinculo_ilpi")
+      .select("id_vinculo, id_ilpi, cargo, data_vinculo, ilpi(nome, cidade, uf)")
+      .eq("id_usuario", user.id)
+      .eq("ativo", true)
+      .order("data_vinculo", { ascending: true }),
+  ]);
+
+  let u: LinhaPerfil | null = null;
+  if (!rpcRes.error) {
+    const linhas = (rpcRes.data ?? []) as unknown as LinhaPerfil[];
+    u = linhas[0] ?? null;
+  } else {
+    const { data: fallback } = await supabase
+      .from("usuario")
+      .select("id_usuario, nome, email, avatar_url, cpf, telefone, data_nascimento, data_cadastro")
+      .eq("id_usuario", user.id)
+      .maybeSingle();
+    u = (fallback as unknown as LinhaPerfil | null) ?? null;
+  }
 
   const vinculos: VinculoPerfil[] = ((vinculosRes.data ?? []) as unknown as {
     id_vinculo: string;

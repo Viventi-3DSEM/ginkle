@@ -89,6 +89,13 @@ export default function ListaSolicitacoes({ adesoes }: Props) {
     {},
   );
 
+  const cancelandoRef = useRef(cancelando);
+  useEffect(() => {
+    cancelandoRef.current = cancelando;
+    const dialog = dialogRef.current;
+    if (dialog) dialog.setAttribute("closedby", cancelando ? "none" : "any");
+  }, [cancelando]);
+
   // closedby="any" dá light-dismiss nativo; onde o navegador ainda não suporta
   // (ex.: Safari), aplicamos o fallback por coordenadas fora do retângulo.
   useEffect(() => {
@@ -114,7 +121,7 @@ export default function ListaSolicitacoes({ adesoes }: Props) {
       pressionouFora = fora(e);
     };
     const onPointerUp = (e: PointerEvent) => {
-      if (pressionouFora && fora(e)) dialog.close();
+      if (!cancelandoRef.current && pressionouFora && fora(e)) dialog.close();
       pressionouFora = false;
     };
 
@@ -373,6 +380,9 @@ export default function ListaSolicitacoes({ adesoes }: Props) {
         ref={dialogRef}
         aria-labelledby={tituloDialogId}
         aria-describedby={descDialogId}
+        onCancel={(e) => {
+          if (cancelando) e.preventDefault();
+        }}
         onClose={(e) => {
           e.currentTarget.returnValue = "";
           setAlvoCancelar(null);

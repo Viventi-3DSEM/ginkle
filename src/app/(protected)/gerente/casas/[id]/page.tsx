@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  AlertTriangle,
   ArrowRight,
   ExternalLink,
   Globe,
@@ -17,7 +18,10 @@ import VisibilidadeCasa from "@/components/painel/VisibilidadeCasa";
 import { casaDoGestor } from "@/lib/painel/dados";
 import { dataCurta, idade, reais } from "@/lib/painel/formato";
 
-type Props = { params: Promise<{ id: string }> };
+type Props = {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ fotosErro?: string }>;
+};
 
 const STATUS_RESIDENTE: Record<string, string> = {
   ATIVO: "Ativo",
@@ -85,10 +89,16 @@ function Numero({ rotulo, valor, detalhe }: { rotulo: string; valor: string; det
   );
 }
 
-export default async function CasaDetalhePage({ params }: Props) {
-  const { id } = await params;
+export default async function CasaDetalhePage({ params, searchParams }: Props) {
+  const [{ id }, query] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve<{ fotosErro?: string }>({}),
+  ]);
   const casa = await casaDoGestor(id);
   if (!casa) notFound();
+
+  const fotosErroQtd = Number(query.fotosErro ?? "0");
+  const mostrarAvisoFotos = Number.isInteger(fotosErroQtd) && fotosErroQtd > 0;
 
   return (
     <div className="space-y-6">
@@ -98,6 +108,20 @@ export default async function CasaDetalhePage({ params }: Props) {
       >
         ← Minhas casas
       </Link>
+
+      {mostrarAvisoFotos ? (
+        <p
+          role="alert"
+          className="flex items-start gap-2.5 rounded-sm border-l-2 border-warning bg-card px-4 py-3 text-xs leading-relaxed text-foreground"
+        >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+          <span>
+            A casa foi cadastrada, mas {fotosErroQtd}{" "}
+            {fotosErroQtd === 1 ? "foto não pôde ser enviada" : "fotos não puderam ser enviadas"}.
+            Você pode tentar novamente na seção &ldquo;Fotos da casa&rdquo; abaixo.
+          </span>
+        </p>
+      ) : null}
 
       <div className="overflow-hidden rounded-sm border border-border bg-card">
         <div className="relative h-40 w-full bg-secondary sm:h-52">

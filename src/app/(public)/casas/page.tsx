@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import CasasDirectory from "./CasasDirectory";
-import { listarIlpis } from "@/lib/ilpi/dados";
+import { listarIlpisComOrigem } from "@/lib/ilpi/dados";
 
 export const metadata: Metadata = {
-  title: "Casas de repouso · Ginkle",
+  title: "Casas de repouso",
   description:
     "Compare instituições de longa permanência para idosos em Praia Grande, Santos e região: estrutura, avaliações e mensalidades.",
 };
@@ -12,6 +12,6 @@ export const metadata: Metadata = {
 export const revalidate = 600;
 
 export default async function CasasPage() {
-  const casas = await listarIlpis();
-  return <CasasDirectory casas={casas} />;
+  const { casas, demo } = await listarIlpisComOrigem();
+  return <CasasDirectory casas={casas} demo={demo} />;
 }

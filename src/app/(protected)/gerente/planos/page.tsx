@@ -42,6 +42,7 @@ export default async function PlanosPage({ searchParams }: Props) {
         </div>
       ) : (
         <GerenciadorPlanos
+          key={params.casa ?? ""}
           casas={casas}
           planos={planos}
           casaInicialId={params.casa}

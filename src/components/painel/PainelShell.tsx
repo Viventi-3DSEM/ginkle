@@ -141,8 +141,15 @@ export default function PainelShell({ usuario, children }: Props) {
 
   return (
     <div className="min-h-screen bg-background md:flex">
+      <a
+        href="#conteudo-principal"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground"
+      >
+        Pular para o conteúdo principal
+      </a>
+
       <aside className="hidden border-r border-border bg-card md:sticky md:top-0 md:flex md:h-screen md:w-64 md:shrink-0 md:flex-col">
-        <Link href="/gerente" className="flex items-center gap-2 px-6 py-6">
+        <Link href="/gerente" className="flex shrink-0 items-center gap-2 px-6 py-6">
           <Image src="/ginkle-mark.svg" alt="" width={28} height={28} className="h-7 w-7" />
           <span className="font-heading text-lg font-bold tracking-tight">Ginkle</span>
           <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-brand-strong">
@@ -150,7 +157,7 @@ export default function PainelShell({ usuario, children }: Props) {
           </span>
         </Link>
 
-        <nav aria-label="Painel" className="flex flex-col gap-1 px-3">
+        <nav aria-label="Painel" className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-3">
           {NAV_TODOS.map((item) => (
             <Link
               key={item.href}
@@ -231,11 +238,23 @@ export default function PainelShell({ usuario, children }: Props) {
           </Link>
           <div className="flex items-center gap-1">
             <Link
-              href="/"
-              aria-label="Ver o site"
-              className="inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              href="/gerente/perfil"
+              aria-label={`Meu perfil (${usuario.nome})`}
+              className="inline-flex size-9 items-center justify-center rounded-sm transition-colors hover:bg-secondary"
             >
-              <Globe className="size-4" aria-hidden="true" />
+              {usuario.avatarUrl ? (
+                <Image
+                  src={usuario.avatarUrl}
+                  alt=""
+                  width={26}
+                  height={26}
+                  className="size-[26px] rounded-full object-cover"
+                />
+              ) : (
+                <span className="grid size-[26px] place-items-center rounded-full bg-brand-soft font-heading text-[0.65rem] font-bold text-brand-strong">
+                  {usuario.nome.slice(0, 1).toUpperCase()}
+                </span>
+              )}
             </Link>
             <ThemeToggle />
             <form action={sair}>
@@ -250,7 +269,11 @@ export default function PainelShell({ usuario, children }: Props) {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-5 pb-28 pt-6 md:px-8 md:pb-14 md:pt-10">
+        <main
+          id="conteudo-principal"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-5xl flex-1 px-5 pb-28 pt-6 outline-none md:px-8 md:pb-14 md:pt-10"
+        >
           {children}
         </main>
       </div>

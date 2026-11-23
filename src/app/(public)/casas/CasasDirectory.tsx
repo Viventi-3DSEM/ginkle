@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { ArrowRight, MapPin, Search, SlidersHorizontal, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { reais } from "@/lib/painel/formato";
 import type { IlpiPublica } from "@/lib/ilpi/tipos";
 
 type Ordem = "relevancia" | "nota" | "menor" | "maior";
@@ -15,12 +16,16 @@ const norm = (value: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 
-const brl = (value: number) => value.toLocaleString("pt-BR");
-
 const notaTexto = (casa: IlpiPublica) =>
   casa.totalAvaliacoes > 0 ? casa.nota.toFixed(1).replace(".", ",") : null;
 
-export default function CasasDirectory({ casas }: { casas: IlpiPublica[] }) {
+export default function CasasDirectory({
+  casas,
+  demo = false,
+}: {
+  casas: IlpiPublica[];
+  demo?: boolean;
+}) {
   const [busca, setBusca] = useState("");
   const [cidade, setCidade] = useState("Todas");
   const [ordem, setOrdem] = useState<Ordem>("relevancia");
@@ -83,11 +88,16 @@ export default function CasasDirectory({ casas }: { casas: IlpiPublica[] }) {
           </h1>
           <p className="mt-4 max-w-2xl font-sans text-base leading-relaxed text-muted-foreground">
             Compare estrutura, avaliações e mensalidades de instituições em Praia
-            Grande, Santos e região. O contato com a casa é liberado após o
-            cadastro.
+            Grande, Santos e região.
           </p>
 
-          <div className="mt-8 rounded-2xl border border-border bg-card p-2 shadow-sm">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              buscar();
+            }}
+            className="mt-8 rounded-2xl border border-border bg-card p-2 shadow-sm"
+          >
             <div className="flex flex-col gap-1 md:flex-row md:items-center">
               <label className="flex flex-1 items-center gap-3 px-4 py-3">
                 <Search className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -97,7 +107,7 @@ export default function CasasDirectory({ casas }: { casas: IlpiPublica[] }) {
                   onChange={(event) => setBusca(event.target.value)}
                   placeholder="Cidade, bairro ou nome da casa"
                   aria-label="Buscar casa de repouso"
-                  className="w-full bg-transparent font-sans text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                  className="w-full bg-transparent font-sans text-base text-foreground outline-none placeholder:text-muted-foreground sm:text-sm"
                 />
               </label>
 
@@ -109,7 +119,7 @@ export default function CasasDirectory({ casas }: { casas: IlpiPublica[] }) {
                   value={cidade}
                   onChange={(event) => setCidade(event.target.value)}
                   aria-label="Filtrar por cidade"
-                  className="w-full cursor-pointer bg-transparent font-sans text-sm text-foreground outline-none md:w-44"
+                  className="w-full cursor-pointer bg-transparent font-sans text-base text-foreground outline-none sm:text-sm md:w-44"
                 >
                   {cidades.map((c) => (
                     <option key={c} value={c}>
@@ -120,15 +130,14 @@ export default function CasasDirectory({ casas }: { casas: IlpiPublica[] }) {
               </label>
 
               <button
-                type="button"
-                onClick={buscar}
+                type="submit"
                 className="m-1 inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-sans text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
               >
                 <Search className="size-4" aria-hidden="true" />
                 Buscar
               </button>
             </div>
-          </div>
+          </form>
         </div>
       </section>
 
@@ -174,7 +183,7 @@ export default function CasasDirectory({ casas }: { casas: IlpiPublica[] }) {
             </label>
           </div>
 
-          <p className="mt-6 font-sans text-sm text-muted-foreground">
+          <p aria-live="polite" className="mt-6 font-sans text-sm text-muted-foreground">
             {filtradas.length}{" "}
             {filtradas.length === 1 ? "casa encontrada" : "casas encontradas"}
             {cidade !== "Todas" ? ` em ${cidade}` : ""}
@@ -262,7 +271,7 @@ export default function CasasDirectory({ casas }: { casas: IlpiPublica[] }) {
                           <p className="font-sans text-xs text-muted-foreground">
                             {casa.mensalidade !== null ? "a partir de" : "mensalidade"}
                             <span className="mt-0.5 block font-heading text-lg font-semibold text-foreground">
-                              {casa.mensalidade !== null ? `R$ ${brl(casa.mensalidade)}` : "sob consulta"}
+                              {casa.mensalidade !== null ? `R$ ${reais(casa.mensalidade)}` : "sob consulta"}
                               {casa.mensalidade !== null ? (
                                 <span className="font-sans text-xs font-normal text-muted-foreground">
                                   /mês
@@ -285,10 +294,12 @@ export default function CasasDirectory({ casas }: { casas: IlpiPublica[] }) {
             </ul>
           )}
 
-          <p className="mt-10 font-serif text-xs italic text-muted-foreground">
-            Catálogo demonstrativo com imagens ilustrativas. As instituições
-            reais aparecem aqui após o cadastro.
-          </p>
+          {demo ? (
+            <p className="mt-10 font-serif text-xs italic text-muted-foreground">
+              Catálogo demonstrativo com imagens ilustrativas. As instituições
+              reais aparecem aqui após o cadastro.
+            </p>
+          ) : null}
         </div>
       </section>
 

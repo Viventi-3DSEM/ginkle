@@ -1,16 +1,16 @@
 import { Star } from "lucide-react";
 import type { IlpiCompleta } from "@/lib/ilpi/tipos";
-
-const brl = (valor: number) => valor.toLocaleString("pt-BR");
+import { reais } from "@/lib/painel/formato";
 
 function Estrelas({ nota }: { nota: number }) {
+  const preenchidas = Math.round(nota);
   return (
-    <span className="inline-flex gap-0.5" aria-label={`${nota} de 5`}>
+    <span className="inline-flex gap-0.5" aria-label={`${nota.toFixed(1).replace(".", ",")} de 5`}>
       {[1, 2, 3, 4, 5].map((n) => (
         <Star
           key={n}
           className={
-            n <= nota
+            n <= preenchidas
               ? "size-3.5 fill-brand-strong text-brand-strong"
               : "size-3.5 text-border"
           }
@@ -53,7 +53,8 @@ export default function CasaInfo({ casa }: { casa: IlpiCompleta }) {
         </h2>
         {casa.planos.length === 0 ? (
           <p className="mt-3 font-sans text-sm text-muted-foreground">
-            Mensalidade sob consulta. Fale com a casa pelo cadastro.
+            Mensalidade sob consulta. Entre em contato com a casa ou solicite entrada pela
+            plataforma.
           </p>
         ) : (
           <ul className="mt-4 divide-y divide-border border-y border-border">
@@ -71,7 +72,7 @@ export default function CasaInfo({ casa }: { casa: IlpiCompleta }) {
                   ) : null}
                 </div>
                 <p className="font-heading text-base font-semibold">
-                  R$ {brl(plano.valor)}
+                  R$ {reais(plano.valor)}
                   <span className="font-sans text-xs font-normal text-muted-foreground">
                     /mês
                   </span>
@@ -107,7 +108,9 @@ export default function CasaInfo({ casa }: { casa: IlpiCompleta }) {
                       dateTime={avaliacao.data}
                       className="font-sans text-xs text-muted-foreground"
                     >
-                      {new Date(avaliacao.data).toLocaleDateString("pt-BR")}
+                      {new Date(avaliacao.data).toLocaleDateString("pt-BR", {
+                        timeZone: "America/Sao_Paulo",
+                      })}
                     </time>
                   ) : null}
                 </div>
@@ -133,7 +136,12 @@ export default function CasaInfo({ casa }: { casa: IlpiCompleta }) {
         </p>
         <p className="mt-4 font-sans text-sm text-muted-foreground">
           Telefone{" "}
-          <span className="font-medium text-foreground">{casa.telefone}</span>
+          <a
+            href={`tel:${casa.telefone.replace(/[^\d+]/g, "")}`}
+            className="font-medium text-foreground transition-colors hover:text-brand-strong"
+          >
+            {casa.telefone}
+          </a>
         </p>
       </section>
     </div>

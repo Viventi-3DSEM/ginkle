@@ -53,24 +53,27 @@ export default function Footer() {
           </ul>
         </nav>
 
-        <nav aria-label="Institucional">
+        <nav aria-label="Para instituições">
           <h2 className="font-sans text-sm font-semibold text-footer-foreground">
-            Institucional
+            Para instituições
           </h2>
           <ul className="mt-4 space-y-2.5 text-sm text-footer-muted">
             <li>
-              <Link href="/sobre" className="transition-colors hover:text-footer-foreground">
-                Termos de uso
+              <Link
+                href="/cadastrar-instituicao"
+                className="transition-colors hover:text-footer-foreground"
+              >
+                Cadastrar instituição
+              </Link>
+            </li>
+            <li>
+              <Link href="/login" className="transition-colors hover:text-footer-foreground">
+                Acessar painel
               </Link>
             </li>
             <li>
               <Link href="/sobre" className="transition-colors hover:text-footer-foreground">
-                Avisos legais
-              </Link>
-            </li>
-            <li>
-              <Link href="/sobre" className="transition-colors hover:text-footer-foreground">
-                Preferências de cookies
+                Transparência e proposta
               </Link>
             </li>
           </ul>
@@ -83,8 +86,11 @@ export default function Footer() {
           <ul className="mt-4 space-y-3 text-sm text-footer-muted">
             <li className="flex items-center gap-2.5">
               <Mail className="size-4 shrink-0" aria-hidden="true" />
-              <a href="mailto:contato@ginkle.com.br" className="transition-colors hover:text-footer-foreground">
-                contato@ginkle.com.br
+              <a
+                href="mailto:contato@ginkle.me"
+                className="transition-colors hover:text-footer-foreground"
+              >
+                contato@ginkle.me
               </a>
             </li>
             <li className="flex items-center gap-2.5">

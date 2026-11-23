@@ -50,6 +50,7 @@ export default async function ResidentesGestorPage({ searchParams }: Props) {
         </div>
       ) : (
         <GerenciadorResidentes
+          key={params.casa ?? ""}
           casas={casas}
           residentes={residentes}
           solicitacoes={solicitacoes}

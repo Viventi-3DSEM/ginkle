@@ -5,14 +5,14 @@ import CasaForm from "@/components/painel/CasaForm";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import { sair } from "@/app/(auth)/actions";
 import { criarCasa } from "@/lib/painel/actions";
-import { painelDoGestor } from "@/lib/painel/dados";
+import { contarMinhasCasas } from "@/lib/painel/dados";
 
 export const metadata = { title: "Cadastrar instituição" };
 
 // Porta de entrada do gestor: qualquer pessoa logada pode cadastrar a primeira
 // casa. É a RPC criar_ilpi() que transforma essa pessoa em GESTOR.
 export default async function CadastrarInstituicaoPage() {
-  const { casas } = await painelDoGestor();
+  const totalCasas = await contarMinhasCasas();
 
   return (
     <div className="min-h-screen bg-background">
@@ -38,13 +38,13 @@ export default async function CadastrarInstituicaoPage() {
       </header>
 
       <main className="mx-auto max-w-5xl px-5 py-8 md:py-12">
-        {casas.length > 0 ? (
+        {totalCasas > 0 ? (
           <Link
             href="/gerente"
             className="mb-6 flex items-center justify-between gap-3 rounded-sm border border-border bg-card px-5 py-4 text-sm transition-colors hover:border-brand-strong/50"
           >
             <span className="text-muted-foreground">
-              Você já gerencia {casas.length === 1 ? "uma casa" : `${casas.length} casas`}.
+              Você já gerencia {totalCasas === 1 ? "uma casa" : `${totalCasas} casas`}.
             </span>
             <span className="inline-flex shrink-0 items-center gap-1 font-medium text-brand-strong">
               Ir para o painel

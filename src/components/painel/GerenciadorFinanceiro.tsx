@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useId, useMemo, useOptimistic, useState, useTransition } from "react";
+import {
+  useActionState,
+  useEffect,
+  useId,
+  useMemo,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -13,6 +22,7 @@ import {
   Plus,
   Receipt,
   Search,
+  Users,
   Wallet,
   X,
   type LucideIcon,
@@ -44,9 +54,35 @@ type Props = {
   planos: PlanoOpcaoFinanceiro[];
   candidatos: CandidatoAssinante[];
   assinaturas: AssinaturaDoGestor[];
+  casaInicialId?: string;
   hojeIso: string;
   proximoVencimentoIso: string;
 };
+
+function StatFinanceiro({
+  rotulo,
+  valor,
+  detalhe,
+  Icone,
+}: {
+  rotulo: string;
+  valor: string;
+  detalhe: string;
+  Icone: LucideIcon;
+}) {
+  return (
+    <div className="rounded-sm border border-border bg-card p-5">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          {rotulo}
+        </p>
+        <Icone className="size-4 shrink-0 text-brand-strong" aria-hidden="true" />
+      </div>
+      <p className="mt-3 font-heading text-2xl font-semibold leading-none">{valor}</p>
+      <p className="mt-2 text-xs text-muted-foreground">{detalhe}</p>
+    </div>
+  );
+}
 
 type FiltroStatus = "ATIVAS" | "TODAS" | "ENCERRADAS";
 
@@ -76,12 +112,18 @@ function formatarValorInput(valor: number): string {
   });
 }
 
+type ConfirmacaoFinanceiro =
+  | { tipo: "assinatura"; id: string; assinante: string; novoStatus: string }
+  | { tipo: "fatura"; id: string; valor: number; statusAtual: string; novoStatus: string };
+
 function LinhaFatura({
   fatura,
   onAviso,
+  onPedirConfirmacao,
 }: {
   fatura: FaturaDoGestor;
   onAviso: (msg: string) => void;
+  onPedirConfirmacao: (alvo: ConfirmacaoFinanceiro) => void;
 }) {
   const [erro, setErro] = useState("");
   const [pendente, startTransition] = useTransition();
@@ -93,6 +135,16 @@ function LinhaFatura({
 
   function alterar(novo: string) {
     if (novo === statusLocal) return;
+    if (novo === "CANCELADO" || (statusLocal === "PAGO" && novo !== "PAGO")) {
+      onPedirConfirmacao({
+        tipo: "fatura",
+        id: fatura.id,
+        valor: fatura.valor,
+        statusAtual: statusLocal,
+        novoStatus: novo,
+      });
+      return;
+    }
     setErro("");
     startTransition(async () => {
       setStatusLocal(novo);
@@ -172,14 +224,18 @@ function CardAssinatura({
   mostrarCasa,
   proximoVencimentoIso,
   onAviso,
+  onPedirConfirmacao,
 }: {
   assinatura: AssinaturaDoGestor;
   mostrarCasa: boolean;
   proximoVencimentoIso: string;
   onAviso: (msg: string) => void;
+  onPedirConfirmacao: (alvo: ConfirmacaoFinanceiro) => void;
 }) {
   const [mostrandoNovaFatura, setMostrandoNovaFatura] = useState(false);
-  const [formFatKey, setFormFatKey] = useState(0);
+  const [valorFat, setValorFat] = useState(() => formatarValorInput(assinatura.planoValor));
+  const [vencFat, setVencFat] = useState(proximoVencimentoIso);
+  const [statusFat, setStatusFat] = useState("PENDENTE");
   const [erroStatus, setErroStatus] = useState("");
   const [alterandoStatus, startStatus] = useTransition();
   const [statusLocal, setStatusLocal] = useOptimistic(assinatura.status);
@@ -192,7 +248,9 @@ function CardAssinatura({
       const res = await criarFatura(prev, formData);
       if (res.ok) {
         setMostrandoNovaFatura(false);
-        setFormFatKey((k) => k + 1);
+        setValorFat(formatarValorInput(assinatura.planoValor));
+        setVencFat(proximoVencimentoIso);
+        setStatusFat("PENDENTE");
         onAviso(res.ok);
       }
       return res;
@@ -202,6 +260,15 @@ function CardAssinatura({
 
   function aoAlterarStatus(novo: string) {
     if (novo === statusLocal) return;
+    if (novo === "CANCELADA") {
+      onPedirConfirmacao({
+        tipo: "assinatura",
+        id: assinatura.id,
+        assinante: assinatura.assinanteNome,
+        novoStatus: novo,
+      });
+      return;
+    }
     setErroStatus("");
     startStatus(async () => {
       setStatusLocal(novo);
@@ -283,21 +350,22 @@ function CardAssinatura({
             </select>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setMostrandoNovaFatura((v) => !v)}
-            aria-expanded={mostrandoNovaFatura}
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary"
-          >
-            <Receipt className="size-3.5" aria-hidden="true" />
-            {mostrandoNovaFatura ? "Fechar fatura" : "Lançar fatura"}
-          </button>
+          {statusLocal !== "CANCELADA" ? (
+            <button
+              type="button"
+              onClick={() => setMostrandoNovaFatura((v) => !v)}
+              aria-expanded={mostrandoNovaFatura}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary"
+            >
+              <Receipt className="size-3.5" aria-hidden="true" />
+              {mostrandoNovaFatura ? "Fechar fatura" : "Lançar fatura"}
+            </button>
+          ) : null}
         </div>
       </div>
 
-      {mostrandoNovaFatura ? (
+      {mostrandoNovaFatura && statusLocal !== "CANCELADA" ? (
         <form
-          key={formFatKey}
           action={acaoFatura}
           className="mt-4 space-y-4 border-t border-border pt-4"
         >
@@ -313,7 +381,8 @@ function CardAssinatura({
                 name="valor"
                 required
                 inputMode="decimal"
-                defaultValue={formatarValorInput(assinatura.planoValor)}
+                value={valorFat}
+                onChange={(e) => setValorFat(e.target.value)}
                 className={inputClass}
               />
             </div>
@@ -327,7 +396,8 @@ function CardAssinatura({
                 name="dataVencimento"
                 type="date"
                 required
-                defaultValue={proximoVencimentoIso}
+                value={vencFat}
+                onChange={(e) => setVencFat(e.target.value)}
                 className={inputClass}
               />
             </div>
@@ -339,7 +409,8 @@ function CardAssinatura({
               <select
                 id={`${baseId}-sit`}
                 name="status"
-                defaultValue="PENDENTE"
+                value={statusFat}
+                onChange={(e) => setStatusFat(e.target.value)}
                 className={cn(inputClass, "bg-card")}
               >
                 <option value="PENDENTE">Pendente</option>
@@ -390,7 +461,12 @@ function CardAssinatura({
         ) : (
           <ul className="mt-2 divide-y divide-border/70">
             {assinatura.faturas.map((fat) => (
-              <LinhaFatura key={fat.id} fatura={fat} onAviso={onAviso} />
+              <LinhaFatura
+                key={fat.id}
+                fatura={fat}
+                onAviso={onAviso}
+                onPedirConfirmacao={onPedirConfirmacao}
+              />
             ))}
           </ul>
         )}
@@ -404,22 +480,109 @@ export default function GerenciadorFinanceiro({
   planos,
   candidatos,
   assinaturas,
+  casaInicialId,
   hojeIso,
   proximoVencimentoIso,
 }: Props) {
+  const casaValidaInicial =
+    casaInicialId && casas.some((c) => c.id === casaInicialId) ? casaInicialId : "TODAS";
+
   const [filtroCasa, setFiltroCasa] = useState<string>(
-    casas.length === 1 ? casas[0].id : "TODAS",
+    casas.length === 1 ? casas[0].id : casaValidaInicial,
   );
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>("ATIVAS");
   const [busca, setBusca] = useState("");
   const [mostrarFormNovo, setMostrarFormNovo] = useState(false);
-  const [casaFormId, setCasaFormId] = useState<string>(casas[0]?.id ?? "");
+  const [casaFormId, setCasaFormId] = useState<string>(
+    casaValidaInicial !== "TODAS" ? casaValidaInicial : (casas[0]?.id ?? ""),
+  );
+  const [usuarioNovoId, setUsuarioNovoId] = useState("");
+  const [planoNovoId, setPlanoNovoId] = useState("");
+  const [inicioNovo, setInicioNovo] = useState(hojeIso);
+  const [vencimentoNovo, setVencimentoNovo] = useState(proximoVencimentoIso);
   const [gerarFatura, setGerarFatura] = useState(true);
-  const [formKey, setFormKey] = useState(0);
   const [avisoOk, setAvisoOk] = useState("");
+  const [alvoConfirmacao, setAlvoConfirmacao] = useState<ConfirmacaoFinanceiro | null>(null);
+  const [erroDialogo, setErroDialogo] = useState("");
+  const [confirmando, startConfirmacao] = useTransition();
+
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const cancelarBtnRef = useRef<HTMLButtonElement>(null);
 
   const formId = useId();
   const buscaId = useId();
+  const tituloDialogId = useId();
+  const descDialogId = useId();
+
+  const confirmandoRef = useRef(confirmando);
+  useEffect(() => {
+    confirmandoRef.current = confirmando;
+    const dialog = dialogRef.current;
+    if (dialog) dialog.setAttribute("closedby", confirmando ? "none" : "any");
+  }, [confirmando]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    dialog.setAttribute("closedby", "any");
+    if ("closedBy" in HTMLDialogElement.prototype) return;
+
+    const fora = (e: PointerEvent) => {
+      const r = dialog.getBoundingClientRect();
+      return (
+        e.clientX < r.left ||
+        e.clientX > r.right ||
+        e.clientY < r.top ||
+        e.clientY > r.bottom
+      );
+    };
+
+    let pressionouFora = false;
+    const onDown = (e: PointerEvent) => {
+      pressionouFora = fora(e);
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!confirmandoRef.current && pressionouFora && fora(e)) dialog.close();
+      pressionouFora = false;
+    };
+
+    dialog.addEventListener("pointerdown", onDown);
+    dialog.addEventListener("pointerup", onUp);
+    return () => {
+      dialog.removeEventListener("pointerdown", onDown);
+      dialog.removeEventListener("pointerup", onUp);
+    };
+  }, []);
+
+  function abrirConfirmacao(alvo: ConfirmacaoFinanceiro) {
+    setErroDialogo("");
+    setAvisoOk("");
+    setAlvoConfirmacao(alvo);
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      cancelarBtnRef.current?.focus();
+    }
+  }
+
+  function executarConfirmacao() {
+    if (!alvoConfirmacao) return;
+    const alvo = alvoConfirmacao;
+    setErroDialogo("");
+    startConfirmacao(async () => {
+      const res =
+        alvo.tipo === "assinatura"
+          ? await atualizarStatusAssinatura(alvo.id, alvo.novoStatus)
+          : await atualizarStatusFatura(alvo.id, alvo.novoStatus);
+      if (res.erro) {
+        setErroDialogo(res.erro);
+      } else {
+        if (res.ok) setAvisoOk(res.ok);
+        dialogRef.current?.close("confirmed");
+      }
+    });
+  }
 
   const [estadoCriar, acaoCriar, criando] = useActionState<Estado, FormData>(
     async (prev, formData) => {
@@ -427,7 +590,10 @@ export default function GerenciadorFinanceiro({
       if (res.ok) {
         setAvisoOk(res.ok);
         setMostrarFormNovo(false);
-        setFormKey((k) => k + 1);
+        setUsuarioNovoId("");
+        setPlanoNovoId("");
+        setInicioNovo(hojeIso);
+        setVencimentoNovo(proximoVencimentoIso);
       }
       return res;
     },
@@ -444,6 +610,15 @@ export default function GerenciadorFinanceiro({
     [candidatos, casaEfetivaForm],
   );
 
+  const planoEfetivoId = planosDaCasaForm.some((p) => p.id === planoNovoId)
+    ? planoNovoId
+    : (planosDaCasaForm[0]?.id ?? "");
+  const usuarioEfetivoId = candidatosDaCasaForm.some(
+    (c) => c.usuarioId === usuarioNovoId && !c.jaTemAssinaturaAtiva,
+  )
+    ? usuarioNovoId
+    : "";
+
   const assinaturasDaCasa = useMemo(
     () =>
       filtroCasa === "TODAS"
@@ -451,6 +626,28 @@ export default function GerenciadorFinanceiro({
         : assinaturas.filter((a) => a.casaId === filtroCasa),
     [assinaturas, filtroCasa],
   );
+
+  const resumoFiltrado = useMemo(() => {
+    let assinaturasAtivas = 0;
+    let receitaMensal = 0;
+    let totalPago = 0;
+    let totalEmAberto = 0;
+    let faturasAtrasadas = 0;
+
+    for (const a of assinaturasDaCasa) {
+      if (a.status === "ATIVA") {
+        assinaturasAtivas += 1;
+        receitaMensal += a.planoValor;
+      }
+      for (const f of a.faturas) {
+        if (f.status === "PAGO") totalPago += f.valor;
+        if (f.status === "PENDENTE" || f.status === "ATRASADO") totalEmAberto += f.valor;
+        if (f.status === "ATRASADO") faturasAtrasadas += 1;
+      }
+    }
+
+    return { assinaturasAtivas, receitaMensal, totalPago, totalEmAberto, faturasAtrasadas };
+  }, [assinaturasDaCasa]);
 
   const visiveis = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -471,6 +668,37 @@ export default function GerenciadorFinanceiro({
 
   return (
     <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatFinanceiro
+          rotulo="Assinaturas ativas"
+          valor={String(resumoFiltrado.assinaturasAtivas)}
+          detalhe="Famílias com plano ativo"
+          Icone={Users}
+        />
+        <StatFinanceiro
+          rotulo="Receita mensal"
+          valor={`R$ ${reais(resumoFiltrado.receitaMensal)}`}
+          detalhe="Soma dos planos ativos"
+          Icone={Wallet}
+        />
+        <StatFinanceiro
+          rotulo="Em aberto"
+          valor={`R$ ${reais(resumoFiltrado.totalEmAberto)}`}
+          detalhe={
+            resumoFiltrado.faturasAtrasadas > 0
+              ? `${resumoFiltrado.faturasAtrasadas} fatura${resumoFiltrado.faturasAtrasadas === 1 ? "" : "s"} em atraso`
+              : "Pendentes de pagamento"
+          }
+          Icone={Clock}
+        />
+        <StatFinanceiro
+          rotulo="Total recebido"
+          valor={`R$ ${reais(resumoFiltrado.totalPago)}`}
+          detalhe="Faturas marcadas como pagas"
+          Icone={CheckCircle2}
+        />
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         {casas.length > 1 ? (
           <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar financeiro por casa">
@@ -577,7 +805,6 @@ export default function GerenciadorFinanceiro({
           </h2>
 
           <form
-            key={`${formKey}-${casaEfetivaForm}`}
             aria-labelledby={`${formId}-titulo`}
             action={acaoCriar}
             className="mt-5 space-y-5"
@@ -590,7 +817,11 @@ export default function GerenciadorFinanceiro({
                 <select
                   id={`${formId}-casa`}
                   value={casaFormId}
-                  onChange={(e) => setCasaFormId(e.target.value)}
+                  onChange={(e) => {
+                    setCasaFormId(e.target.value);
+                    setUsuarioNovoId("");
+                    setPlanoNovoId("");
+                  }}
                   className={cn(inputClass, "bg-card")}
                 >
                   {casas.map((casa) => (
@@ -633,15 +864,21 @@ export default function GerenciadorFinanceiro({
                       id={`${formId}-usuario`}
                       name="usuarioId"
                       required
-                      defaultValue=""
+                      value={usuarioEfetivoId}
+                      onChange={(e) => setUsuarioNovoId(e.target.value)}
                       className={cn(inputClass, "bg-card")}
                     >
                       <option value="" disabled>
                         Selecione o familiar...
                       </option>
                       {candidatosDaCasaForm.map((c) => (
-                        <option key={c.usuarioId} value={c.usuarioId}>
+                        <option
+                          key={c.usuarioId}
+                          value={c.usuarioId}
+                          disabled={c.jaTemAssinaturaAtiva}
+                        >
                           {c.nome} ({c.email})
+                          {c.jaTemAssinaturaAtiva ? " · já tem assinatura ativa" : ""}
                         </option>
                       ))}
                     </select>
@@ -655,7 +892,8 @@ export default function GerenciadorFinanceiro({
                       id={`${formId}-plano`}
                       name="planoId"
                       required
-                      defaultValue={planosDaCasaForm[0]?.id ?? ""}
+                      value={planoEfetivoId}
+                      onChange={(e) => setPlanoNovoId(e.target.value)}
                       className={cn(inputClass, "bg-card")}
                     >
                       {planosDaCasaForm.map((p) => (
@@ -675,7 +913,8 @@ export default function GerenciadorFinanceiro({
                       name="dataInicio"
                       type="date"
                       required
-                      defaultValue={hojeIso}
+                      value={inicioNovo}
+                      onChange={(e) => setInicioNovo(e.target.value)}
                       className={inputClass}
                     />
                   </div>
@@ -690,7 +929,8 @@ export default function GerenciadorFinanceiro({
                         name="dataVencimento"
                         type="date"
                         required
-                        defaultValue={proximoVencimentoIso}
+                        value={vencimentoNovo}
+                        onChange={(e) => setVencimentoNovo(e.target.value)}
                         className={inputClass}
                       />
                     </div>
@@ -823,10 +1063,105 @@ export default function GerenciadorFinanceiro({
               mostrarCasa={filtroCasa === "TODAS" && casas.length > 1}
               proximoVencimentoIso={proximoVencimentoIso}
               onAviso={setAvisoOk}
+              onPedirConfirmacao={abrirConfirmacao}
             />
           ))}
         </ul>
       )}
+
+      <dialog
+        ref={dialogRef}
+        aria-labelledby={tituloDialogId}
+        aria-describedby={descDialogId}
+        onCancel={(e) => {
+          if (confirmando) e.preventDefault();
+        }}
+        onClose={(e) => {
+          e.currentTarget.returnValue = "";
+          setAlvoConfirmacao(null);
+          setErroDialogo("");
+        }}
+        className="m-auto w-[calc(100%-2rem)] max-w-md rounded-sm border border-border bg-card p-0 text-foreground shadow-xl"
+      >
+        <div className="p-6">
+          <div className="flex items-start justify-between gap-3">
+            <h2 id={tituloDialogId} className="font-heading text-lg font-semibold">
+              {alvoConfirmacao?.tipo === "assinatura"
+                ? "Cancelar assinatura?"
+                : alvoConfirmacao?.novoStatus === "CANCELADO"
+                  ? "Cancelar fatura?"
+                  : "Reverter pagamento da fatura?"}
+            </h2>
+            <button
+              type="button"
+              onClick={() => dialogRef.current?.close("cancel")}
+              disabled={confirmando}
+              aria-label="Fechar janela"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+
+          <p id={descDialogId} className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            {alvoConfirmacao?.tipo === "assinatura" ? (
+              <>
+                A assinatura de{" "}
+                <span className="font-semibold text-foreground">{alvoConfirmacao.assinante}</span>{" "}
+                será encerrada na data de hoje e deixará de contar na receita mensal ativa.
+              </>
+            ) : alvoConfirmacao?.novoStatus === "CANCELADO" ? (
+              <>
+                A fatura de{" "}
+                <span className="font-semibold text-foreground">
+                  R$ {reais(alvoConfirmacao.valor)}
+                </span>{" "}
+                será marcada como cancelada e sairá dos valores em aberto/recebidos.
+              </>
+            ) : alvoConfirmacao ? (
+              <>
+                A fatura de{" "}
+                <span className="font-semibold text-foreground">
+                  R$ {reais(alvoConfirmacao.valor)}
+                </span>{" "}
+                perderá a data de pagamento registrada ao deixar a situação &ldquo;Pago&rdquo;.
+              </>
+            ) : null}
+          </p>
+
+          {erroDialogo ? (
+            <p
+              role="alert"
+              className="mt-4 flex items-start gap-2 border-l-2 border-danger bg-background/60 px-3 py-2.5 text-xs leading-relaxed text-danger"
+            >
+              <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              <span>{erroDialogo}</span>
+            </p>
+          ) : null}
+
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              ref={cancelarBtnRef}
+              type="button"
+              autoFocus
+              onClick={() => dialogRef.current?.close("cancel")}
+              disabled={confirmando}
+              className="inline-flex min-h-11 items-center justify-center rounded-sm border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary disabled:opacity-50"
+            >
+              Voltar
+            </button>
+            <button
+              type="button"
+              onClick={executarConfirmacao}
+              disabled={confirmando || !alvoConfirmacao}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-sm bg-danger px-4 py-2 text-sm font-semibold text-danger-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {confirmando ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+              {confirmando ? "Salvando..." : "Confirmar alteração"}
+            </button>
+          </div>
+        </div>
+      </dialog>
     </div>
   );
 }

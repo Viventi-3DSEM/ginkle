@@ -15,11 +15,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const casa = await buscarIlpi(slug);
 
-  if (!casa) return { title: "Casa não encontrada · Ginkle" };
+  if (!casa) return { title: "Casa não encontrada" };
 
   const local = `${casa.bairro}, ${casa.cidade}`;
   return {
-    title: `${casa.nome} · ${local} · Ginkle`,
+    title: `${casa.nome} · ${local}`,
     description: `${casa.descricao} Fica em ${local}. Mensalidade, vagas e avaliações de famílias no Ginkle.`,
     openGraph: {
       title: `${casa.nome} · ${local}`,
@@ -33,6 +33,9 @@ export default async function CasaPage({ params }: Props) {
   const { slug } = await params;
   const casa = await buscarIlpi(slug);
   if (!casa) notFound();
+
+  const usandoFotosIlustrativas =
+    casa.fotos.length === 0 || casa.fotos.every((f) => f.url.startsWith("/images/"));
 
   return (
     <main className="flex flex-col bg-background">
@@ -61,8 +64,9 @@ export default async function CasaPage({ params }: Props) {
         </div>
 
         <p className="mt-6 font-serif text-xs italic text-muted-foreground">
-          Imagens ilustrativas. Dados cadastrais e avaliações são mantidos pelas
-          instituições e pelas famílias vinculadas.
+          {usandoFotosIlustrativas ? "Imagens ilustrativas. " : ""}
+          Dados cadastrais e avaliações são mantidos pelas instituições e pelas
+          famílias vinculadas.
         </p>
       </div>
     </main>

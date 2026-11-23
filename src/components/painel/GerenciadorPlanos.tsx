@@ -70,6 +70,9 @@ function CardPlano({
   onAviso: (msg: string) => void;
 }) {
   const [editando, setEditando] = useState(false);
+  const [nomeEdit, setNomeEdit] = useState(plano.nome);
+  const [valorEdit, setValorEdit] = useState(() => formatarValorInput(plano.valor));
+  const [descEdit, setDescEdit] = useState(plano.descricao ?? "");
   const [erroSwitch, setErroSwitch] = useState("");
   const [alternando, startTransition] = useTransition();
   const [ativoLocal, setAtivoLocal] = useOptimistic(plano.ativo);
@@ -130,7 +133,8 @@ function CardPlano({
                 name="nome"
                 required
                 maxLength={80}
-                defaultValue={plano.nome}
+                value={nomeEdit}
+                onChange={(e) => setNomeEdit(e.target.value)}
                 className={inputClass}
               />
             </div>
@@ -144,7 +148,8 @@ function CardPlano({
                 name="valor"
                 required
                 inputMode="decimal"
-                defaultValue={formatarValorInput(plano.valor)}
+                value={valorEdit}
+                onChange={(e) => setValorEdit(e.target.value)}
                 placeholder="3.200,00"
                 className={inputClass}
               />
@@ -160,7 +165,8 @@ function CardPlano({
               name="descricao"
               rows={2}
               maxLength={300}
-              defaultValue={plano.descricao ?? ""}
+              value={descEdit}
+              onChange={(e) => setDescEdit(e.target.value)}
               placeholder="O que está incluído neste plano."
               className={cn(inputClass, "resize-y")}
             />
@@ -255,7 +261,12 @@ function CardPlano({
 
           <button
             type="button"
-            onClick={() => setEditando(true)}
+            onClick={() => {
+              setNomeEdit(plano.nome);
+              setValorEdit(formatarValorInput(plano.valor));
+              setDescEdit(plano.descricao ?? "");
+              setEditando(true);
+            }}
             className="inline-flex min-h-9 items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary"
           >
             <Pencil className="size-3.5" aria-hidden="true" />
@@ -284,10 +295,15 @@ export default function GerenciadorPlanos({ casas, planos, casaInicialId }: Prop
     casas.length === 1 ? casas[0].id : casaValidaInicial,
   );
   const [mostrarFormNovo, setMostrarFormNovo] = useState(planos.length === 0);
+  const [casaNova, setCasaNova] = useState<string>(
+    casaValidaInicial !== "TODAS" ? casaValidaInicial : (casas[0]?.id ?? ""),
+  );
+  const [nomeNovo, setNomeNovo] = useState("");
+  const [valorNovo, setValorNovo] = useState("");
+  const [descNova, setDescNova] = useState("");
   const [avisoOk, setAvisoOk] = useState("");
   const [alvoExcluir, setAlvoExcluir] = useState<PlanoDoGestor | null>(null);
   const [erroDialogo, setErroDialogo] = useState("");
-  const [formKey, setFormKey] = useState(0);
 
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelarBtnRef = useRef<HTMLButtonElement>(null);
@@ -306,7 +322,9 @@ export default function GerenciadorPlanos({ casas, planos, casaInicialId }: Prop
       if (res.ok) {
         setAvisoOk(res.ok);
         setMostrarFormNovo(false);
-        setFormKey((k) => k + 1);
+        setNomeNovo("");
+        setValorNovo("");
+        setDescNova("");
       }
       return res;
     },
@@ -327,6 +345,13 @@ export default function GerenciadorPlanos({ casas, planos, casaInicialId }: Prop
     },
     {},
   );
+
+  const excluindoRef = useRef(excluindo);
+  useEffect(() => {
+    excluindoRef.current = excluindo;
+    const dialog = dialogRef.current;
+    if (dialog) dialog.setAttribute("closedby", excluindo ? "none" : "any");
+  }, [excluindo]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -350,7 +375,7 @@ export default function GerenciadorPlanos({ casas, planos, casaInicialId }: Prop
       pressionouFora = fora(e);
     };
     const onUp = (e: PointerEvent) => {
-      if (pressionouFora && fora(e)) dialog.close();
+      if (!excluindoRef.current && pressionouFora && fora(e)) dialog.close();
       pressionouFora = false;
     };
 
@@ -377,8 +402,6 @@ export default function GerenciadorPlanos({ casas, planos, casaInicialId }: Prop
     if (filtroCasa === "TODAS") return planos;
     return planos.filter((p) => p.casaId === filtroCasa);
   }, [planos, filtroCasa]);
-
-  const casaPadraoForm = filtroCasa !== "TODAS" ? filtroCasa : (casas[0]?.id ?? "");
 
   return (
     <div className="space-y-6">
@@ -421,7 +444,10 @@ export default function GerenciadorPlanos({ casas, planos, casaInicialId }: Prop
                   key={casa.id}
                   type="button"
                   aria-pressed={ativo}
-                  onClick={() => setFiltroCasa(casa.id)}
+                  onClick={() => {
+                    setFiltroCasa(casa.id);
+                    setCasaNova(casa.id);
+                  }}
                   className={cn(
                     "inline-flex min-h-9 items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-medium transition-colors",
                     ativo
@@ -491,7 +517,6 @@ export default function GerenciadorPlanos({ casas, planos, casaInicialId }: Prop
           </h2>
 
           <form
-            key={`${formKey}-${casaPadraoForm}`}
             aria-labelledby={tituloFormId}
             action={acaoCriar}
             className="mt-5 space-y-5"
@@ -505,7 +530,8 @@ export default function GerenciadorPlanos({ casas, planos, casaInicialId }: Prop
                   id={casaSelectId}
                   name="casaId"
                   required
-                  defaultValue={casaPadraoForm}
+                  value={filtroCasa !== "TODAS" ? filtroCasa : casaNova}
+                  onChange={(e) => setCasaNova(e.target.value)}
                   className={cn(inputClass, "bg-card")}
                 >
                   {casas.map((casa) => (
@@ -530,6 +556,8 @@ export default function GerenciadorPlanos({ casas, planos, casaInicialId }: Prop
                   required
                   maxLength={80}
                   placeholder="Ex.: Suíte individual"
+                  value={nomeNovo}
+                  onChange={(e) => setNomeNovo(e.target.value)}
                   className={inputClass}
                 />
               </div>
@@ -544,6 +572,8 @@ export default function GerenciadorPlanos({ casas, planos, casaInicialId }: Prop
                   required
                   inputMode="decimal"
                   placeholder="3.200,00"
+                  value={valorNovo}
+                  onChange={(e) => setValorNovo(e.target.value)}
                   className={inputClass}
                 />
               </div>
@@ -559,6 +589,8 @@ export default function GerenciadorPlanos({ casas, planos, casaInicialId }: Prop
                 rows={2}
                 maxLength={300}
                 placeholder="Acomodação, cuidados incluídos e diferenciais."
+                value={descNova}
+                onChange={(e) => setDescNova(e.target.value)}
                 className={cn(inputClass, "resize-y")}
               />
             </div>
@@ -627,6 +659,9 @@ export default function GerenciadorPlanos({ casas, planos, casaInicialId }: Prop
         ref={dialogRef}
         aria-labelledby={tituloDialogId}
         aria-describedby={descDialogId}
+        onCancel={(e) => {
+          if (excluindo) e.preventDefault();
+        }}
         onClose={(e) => {
           e.currentTarget.returnValue = "";
           setAlvoExcluir(null);

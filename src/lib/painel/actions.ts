@@ -3,16 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { supabaseConfigurado } from "@/lib/supabase/env";
+import { SUPABASE_URL, supabaseConfigurado } from "@/lib/supabase/env";
 import { cpfValido, soDigitos } from "@/lib/validacao/cpf";
 import { cnpjValido, formatarCnpj } from "@/lib/validacao/cnpj";
 import { formatarTelefone, telefoneValido } from "@/lib/validacao/telefone";
 import { slugificar, slugValido } from "@/lib/validacao/slug";
+import { parseValorMonetario } from "@/lib/validacao/moeda";
 
 export type Estado = { erro?: string; ok?: string; casaId?: string };
 
 const SEM_SUPABASE =
-  "O Supabase ainda não está configurado. Preencha o .env.local para continuar.";
+  "O serviço de dados está indisponível no momento. Tente novamente em instantes.";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -74,7 +75,7 @@ function ler(form: FormData): { dados?: DadosCasa; erro?: string } {
 
   const slug = slugBruto ? slugificar(slugBruto) : slugificar(nome);
   if (!slugValido(slug)) {
-    return { erro: "O endereço da página (slug) aceita só letras, números e hífen." };
+    return { erro: "O link da página aceita só letras, números e hífen." };
   }
 
   const cnpj = soDigitos(cnpjBruto);
@@ -201,6 +202,13 @@ export async function atualizarCasa(_estado: Estado, form: FormData): Promise<Es
   if (!dados) return { erro: erro ?? "Revise os dados." };
 
   const supabase = await createClient();
+  const { data: anterior } = await supabase
+    .from("ilpi")
+    .select("slug")
+    .eq("id_ilpi", id)
+    .maybeSingle();
+  const slugAnterior = (anterior?.slug as string | undefined) ?? null;
+
   const { data, error } = await supabase
     .from("ilpi")
     .update({
@@ -228,9 +236,14 @@ export async function atualizarCasa(_estado: Estado, form: FormData): Promise<Es
   }
 
   revalidatePath("/gerente");
+  revalidatePath("/gerente/casas");
   revalidatePath(`/gerente/casas/${id}`);
+  revalidatePath(`/gerente/casas/${id}/editar`);
   revalidatePath("/casas");
   revalidatePath(`/casas/${dados.slug}`);
+  if (slugAnterior && slugAnterior !== dados.slug) {
+    revalidatePath(`/casas/${slugAnterior}`);
+  }
 
   redirect(`/gerente/casas/${id}`);
 }
@@ -274,19 +287,7 @@ export async function definirVisibilidade(
 }
 
 function lerValorPlano(bruto: string): number | null {
-  const limpo = bruto.replace(/R\$/gi, "").replace(/\s+/g, "");
-  if (!limpo) return null;
-
-  let normalizado = limpo;
-  if (limpo.includes(".") && limpo.includes(",")) {
-    normalizado = limpo.replace(/\./g, "").replace(",", ".");
-  } else if (limpo.includes(",")) {
-    normalizado = limpo.replace(",", ".");
-  }
-
-  const valor = Number(normalizado);
-  if (!Number.isFinite(valor) || valor < 0 || valor > 999999.99) return null;
-  return Math.round(valor * 100) / 100;
+  return parseValorMonetario(bruto);
 }
 
 function lerDadosPlano(form: FormData): {
@@ -515,9 +516,12 @@ function lerDadosResidente(form: FormData, cpfAtual?: string): {
     return { erro: "As observações médicas aceitam até 2000 caracteres." };
   }
 
-  const hojeIso = new Date().toISOString().slice(0, 10);
+  const hojeIso = hojeBrasiliaIso();
   if (nascimento > hojeIso) {
     return { erro: "A data de nascimento não pode estar no futuro." };
+  }
+  if (ingresso < nascimento) {
+    return { erro: "A data de ingresso não pode ser anterior à data de nascimento." };
   }
 
   return {
@@ -1189,12 +1193,27 @@ export async function alterarSenha(_estado: Estado, form: FormData): Promise<Est
   return { ok: "Senha atualizada com sucesso." };
 }
 
+const MAX_FOTOS_POR_CASA = 12;
+
 function extrairCaminhoBucket(url: string, bucket: "fotos-casas" | "avatares"): string | null {
-  const marcador = `/storage/v1/object/public/${bucket}/`;
-  const idx = url.indexOf(marcador);
-  if (idx === -1) return null;
-  const resto = url.slice(idx + marcador.length).split("?")[0];
-  return resto ? decodeURIComponent(resto) : null;
+  if (!SUPABASE_URL) return null;
+  try {
+    const base = new URL(SUPABASE_URL);
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" || parsed.origin !== base.origin) return null;
+    if (parsed.search || parsed.hash) return null;
+
+    const marcador = `/storage/v1/object/public/${bucket}/`;
+    if (!parsed.pathname.startsWith(marcador)) return null;
+
+    const resto = decodeURIComponent(parsed.pathname.slice(marcador.length));
+    const partes = resto.split("/");
+    if (partes.length !== 2 || !partes[0] || !partes[1]) return null;
+    if (partes.some((p) => p === "." || p === ".." || p.includes("\\"))) return null;
+    return resto;
+  } catch {
+    return null;
+  }
 }
 
 async function revalidarFotosCasa(
@@ -1266,8 +1285,8 @@ export async function registrarFotosCasa(
 ): Promise<{ erro?: string; ok?: string }> {
   if (!supabaseConfigurado()) return { erro: SEM_SUPABASE };
   if (!UUID_RE.test(casaId)) return { erro: "Casa não encontrada." };
-  if (fotos.length === 0 || fotos.length > 12) {
-    return { erro: "Envie entre 1 e 12 fotos por vez." };
+  if (fotos.length === 0 || fotos.length > MAX_FOTOS_POR_CASA) {
+    return { erro: `Envie entre 1 e ${MAX_FOTOS_POR_CASA} fotos por vez.` };
   }
 
   for (const foto of fotos) {
@@ -1282,8 +1301,14 @@ export async function registrarFotosCasa(
     .from("foto_ilpi")
     .select("ordem")
     .eq("id_ilpi", casaId)
-    .order("ordem", { ascending: false })
-    .limit(1);
+    .order("ordem", { ascending: false });
+
+  const totalExistente = existentes?.length ?? 0;
+  if (totalExistente + fotos.length > MAX_FOTOS_POR_CASA) {
+    return {
+      erro: `Cada casa pode ter no máximo ${MAX_FOTOS_POR_CASA} fotos.`,
+    };
+  }
 
   const ultimaOrdem =
     existentes && existentes.length > 0 ? Number(existentes[0].ordem ?? -1) : -1;

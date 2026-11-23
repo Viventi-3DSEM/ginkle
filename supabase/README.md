@@ -20,8 +20,9 @@ No SQL Editor do Supabase, rodar **um arquivo por vez, nesta ordem**:
 11. `migrations/0011_limpa_rls_grants.sql` — vazamento de casa em rascunho, insert direto de casa e EXECUTE das funções
 12. `migrations/0012_painel_gestor.sql` — leitura de solicitantes/assinantes/colegas inativos, RPCs por e-mail, financeiro do gestor e auditoria por casa
 13. `migrations/0013_fotos_storage.sql` — coluna `usuario.avatar_url`, buckets públicos (`fotos-casas`, `avatares`) e policies de Storage por pasta
-14. `seed.sql` — as 8 casas do protótipo
-15. `seed_fotos_planos.sql` — fotos e planos dessas casas
+14. `migrations/0014_integridade_rls.sql` — corrige produto cartesiano em `ilpi_publica`, avaliações de casa privada para a equipe, edição de assinatura após desvincular familiar, `adesao_solicita` só em casa publicada, proteção LGPD de `cpf`/`data_nascimento` em `usuario` (`meu_perfil()`) e trava antifraude em `registro_assistencial.sincronizado_em_servidor`
+15. `seed.sql` — as 8 casas do protótipo
+16. `seed_fotos_planos.sql` — fotos e planos dessas casas
 
 Todos são idempotentes: pode rodar de novo sem duplicar.
 
@@ -29,10 +30,12 @@ Todos são idempotentes: pode rodar de novo sem duplicar.
 
 Depois dos seeds, `node supabase/demo.mjs` cria um cenário de demonstração por
 RLS: 6 contas (1 gestora, 3 funcionários, 2 familiares), 3 casas (duas
-publicadas e uma em rascunho), residentes, registros espalhados por 7 dias,
-avaliações e adesões. A senha das contas vem de `DEMO_PW` (nunca no
-repositório); o script é idempotente e `demo-limpar.sql` desfaz tudo na ordem
-das chaves estrangeiras.
+publicadas e uma em rascunho), residentes, 12 registros por casa (11 pontuais e
+1 com 25 min de atraso), avaliações e adesões. A senha das contas vem de
+`DEMO_PW` (nunca no repositório); o script é idempotente e `demo-limpar.sql`
+desfaz tudo na ordem das chaves estrangeiras. Para espalhar os registros das
+casas de demonstração ao longo dos últimos 7 dias (sem abrir brecha na API),
+rode `supabase/demo-datas-historicas.sql` no SQL Editor depois do `demo.mjs`.
 
 ## O que mudou na porta MySQL → Postgres
 
@@ -104,6 +107,9 @@ quem consulta e a permissão é verificada.
 - `public.vincular_equipe_por_email(...)` e `public.vincular_familiar_por_email(...)` —
   adicionam profissional (apenas gestor) ou familiar (equipe) por e-mail sem
   abrir a tabela `usuario` para busca irrestrita (`0012`).
+- `public.meu_perfil()` — devolve o perfil completo (inclusive `cpf` e
+  `data_nascimento`) exclusivamente do `auth.uid()`, permitindo manter essas
+  colunas fora do `SELECT` geral de `public.usuario` (`0014`).
 
 ## Como isto foi verificado
 

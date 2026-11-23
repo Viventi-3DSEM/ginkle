@@ -6,7 +6,7 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { entrar, entrarDemo, type Estado } from "../actions";
 
 const inputClass =
-  "w-full border-b border-input bg-transparent py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-brand-strong";
+  "w-full border-b border-input bg-transparent py-2.5 text-base outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-brand-strong sm:text-sm";
 
 const labelClass =
   "mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground";
@@ -28,7 +28,9 @@ export default function LoginForm({ erroInicial, avisoInicial, destino, contasDe
   const [estado, acao, enviando] = useActionState<Estado, FormData>(entrar, {});
   const [estadoDemo, acaoDemo, entrandoDemo] = useActionState<Estado, FormData>(entrarDemo, {});
   const [showPw, setShowPw] = useState(false);
+  const [email, setEmail] = useState("");
 
+  const ocupado = enviando || entrandoDemo;
   const aviso = estado.ok ?? avisoInicial;
   const erro = estado.erro ?? erroInicial;
 
@@ -53,6 +55,8 @@ export default function LoginForm({ erroInicial, avisoInicial, destino, contasDe
               type="email"
               autoComplete="email"
               placeholder="seu@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className={inputClass}
             />
           </div>
@@ -81,6 +85,7 @@ export default function LoginForm({ erroInicial, avisoInicial, destino, contasDe
               <button
                 type="button"
                 onClick={() => setShowPw((v) => !v)}
+                aria-pressed={showPw}
                 aria-label={showPw ? "Ocultar senha" : "Mostrar senha"}
                 className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
               >
@@ -91,7 +96,7 @@ export default function LoginForm({ erroInicial, avisoInicial, destino, contasDe
 
           <button
             type="submit"
-            disabled={enviando}
+            disabled={ocupado}
             className="inline-flex w-full items-center justify-center gap-2 rounded-sm bg-primary py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             {enviando && <Loader2 className="size-4 animate-spin" />}
@@ -113,7 +118,10 @@ export default function LoginForm({ erroInicial, avisoInicial, destino, contasDe
 
         <p className="mt-8 text-sm text-muted-foreground">
           Ainda não tem conta?{" "}
-          <Link href="/cadastro" className="font-medium text-brand-strong hover:underline">
+          <Link
+            href={destino ? `/cadastro?next=${encodeURIComponent(destino)}` : "/cadastro"}
+            className="font-medium text-brand-strong hover:underline"
+          >
             Cadastre-se
           </Link>
         </p>
@@ -134,7 +142,7 @@ export default function LoginForm({ erroInicial, avisoInicial, destino, contasDe
                   type="submit"
                   name="papel"
                   value={conta.papel}
-                  disabled={entrandoDemo}
+                  disabled={ocupado}
                   className="flex w-full items-center justify-between gap-3 rounded-sm border border-input px-4 py-2.5 text-left text-sm transition-colors hover:border-brand-strong disabled:opacity-60"
                 >
                   <span className="font-medium">{conta.rotulo}</span>

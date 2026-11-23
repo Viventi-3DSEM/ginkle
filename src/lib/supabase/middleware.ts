@@ -91,7 +91,7 @@ export async function updateSession(request: NextRequest) {
 
   // Só consulta o vínculo quando o desvio depende dele.
   const precisaCargo = Boolean(area?.cargo) || TELAS_AUTH.includes(pathname);
-  let cargo: string | null = null;
+  let cargos: string[] = [];
 
   if (precisaCargo) {
     const { data } = await supabase
@@ -100,13 +100,14 @@ export async function updateSession(request: NextRequest) {
       .eq("id_usuario", userId)
       .eq("ativo", true);
 
-    const cargos = (data ?? []).map((linha) => linha.cargo as string);
-    cargo = cargos.includes("GESTOR")
-      ? "GESTOR"
-      : cargos.includes("FUNCIONARIO")
-        ? "FUNCIONARIO"
-        : null;
+    cargos = (data ?? []).map((linha) => linha.cargo as string);
   }
+
+  const cargo = cargos.includes("GESTOR")
+    ? "GESTOR"
+    : cargos.includes("FUNCIONARIO")
+      ? "FUNCIONARIO"
+      : null;
 
   const home =
     cargo === "GESTOR"
@@ -122,7 +123,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (area?.cargo && cargo !== area.cargo) {
+  // Permite que usuários com múltiplos vínculos (ex.: GESTOR em A e FUNCIONARIO em B) acessem ambos os painéis.
+  if (area?.cargo && !cargos.includes(area.cargo)) {
     const url = request.nextUrl.clone();
     url.pathname = home;
     url.search = "";

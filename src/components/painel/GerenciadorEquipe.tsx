@@ -60,11 +60,13 @@ function CardMembro({
   mostrarCasa,
   onAviso,
   onPedirRemocao,
+  onPedirPromocao,
 }: {
   membro: MembroEquipe;
   mostrarCasa: boolean;
   onAviso: (msg: string) => void;
   onPedirRemocao: (membro: MembroEquipe) => void;
+  onPedirPromocao: (membro: MembroEquipe) => void;
 }) {
   const [erroLinha, setErroLinha] = useState("");
   const [alterandoAtivo, startAtivo] = useTransition();
@@ -86,6 +88,10 @@ function CardMembro({
 
   function aoTrocarCargo(novoCargo: string) {
     if (novoCargo === membro.cargo) return;
+    if (novoCargo === "GESTOR") {
+      onPedirPromocao(membro);
+      return;
+    }
     setErroLinha("");
     startCargo(async () => {
       setCargoLocal(novoCargo);
@@ -216,10 +222,17 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>("ATIVOS");
   const [busca, setBusca] = useState("");
   const [mostrarFormNovo, setMostrarFormNovo] = useState(false);
-  const [formKey, setFormKey] = useState(0);
+  const [casaNova, setCasaNova] = useState<string>(
+    casaValidaInicial !== "TODAS" ? casaValidaInicial : (casas[0]?.id ?? ""),
+  );
+  const [emailNovo, setEmailNovo] = useState("");
+  const [cargoNovo, setCargoNovo] = useState("FUNCIONARIO");
   const [avisoOk, setAvisoOk] = useState("");
-  const [alvoRemover, setAlvoRemover] = useState<MembroEquipe | null>(null);
+  const [alvoModal, setAlvoModal] = useState<
+    { tipo: "remover" | "promover"; membro: MembroEquipe } | null
+  >(null);
   const [erroDialogo, setErroDialogo] = useState("");
+  const [promovendo, startPromocao] = useTransition();
 
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelarBtnRef = useRef<HTMLButtonElement>(null);
@@ -235,7 +248,8 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
       if (res.ok) {
         setAvisoOk(res.ok);
         setMostrarFormNovo(false);
-        setFormKey((k) => k + 1);
+        setEmailNovo("");
+        setCargoNovo("FUNCIONARIO");
       }
       return res;
     },
@@ -256,6 +270,14 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
     },
     {},
   );
+
+  const ocupandoModal = removendo || promovendo;
+  const ocupandoRef = useRef(ocupandoModal);
+  useEffect(() => {
+    ocupandoRef.current = ocupandoModal;
+    const dialog = dialogRef.current;
+    if (dialog) dialog.setAttribute("closedby", ocupandoModal ? "none" : "any");
+  }, [ocupandoModal]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -279,7 +301,7 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
       pressionouFora = fora(e);
     };
     const onUp = (e: PointerEvent) => {
-      if (pressionouFora && fora(e)) dialog.close();
+      if (!ocupandoRef.current && pressionouFora && fora(e)) dialog.close();
       pressionouFora = false;
     };
 
@@ -291,15 +313,30 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
     };
   }, []);
 
-  function abrirRemocao(membro: MembroEquipe) {
+  function abrirModal(tipo: "remover" | "promover", membro: MembroEquipe) {
     setErroDialogo("");
     setAvisoOk("");
-    setAlvoRemover(membro);
+    setAlvoModal({ tipo, membro });
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) {
       dialog.showModal();
       cancelarBtnRef.current?.focus();
     }
+  }
+
+  function confirmarPromocao() {
+    if (!alvoModal || alvoModal.tipo !== "promover") return;
+    const { id, casaId } = alvoModal.membro;
+    setErroDialogo("");
+    startPromocao(async () => {
+      const res = await alterarCargoEquipe(id, casaId, "GESTOR");
+      if (res.erro) {
+        setErroDialogo(res.erro);
+      } else {
+        setAvisoOk(res.ok ?? "Cargo atualizado para Gestor.");
+        dialogRef.current?.close("confirmed");
+      }
+    });
   }
 
   const membrosDaCasaFiltro = useMemo(
@@ -323,8 +360,6 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
       return true;
     });
   }, [membrosDaCasaFiltro, filtroStatus, busca]);
-
-  const casaPadraoForm = filtroCasa !== "TODAS" ? filtroCasa : (casas[0]?.id ?? "");
 
   return (
     <div className="space-y-6">
@@ -363,7 +398,10 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
                   key={casa.id}
                   type="button"
                   aria-pressed={ativo}
-                  onClick={() => setFiltroCasa(casa.id)}
+                  onClick={() => {
+                    setFiltroCasa(casa.id);
+                    setCasaNova(casa.id);
+                  }}
                   className={cn(
                     "inline-flex min-h-9 items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-medium transition-colors",
                     ativo
@@ -434,7 +472,6 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
           </p>
 
           <form
-            key={`${formKey}-${casaPadraoForm}`}
             aria-labelledby={`${formId}-titulo`}
             action={acaoCriar}
             className="mt-5 space-y-5"
@@ -448,7 +485,8 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
                   id={`${formId}-casa`}
                   name="casaId"
                   required
-                  defaultValue={casaPadraoForm}
+                  value={filtroCasa !== "TODAS" ? filtroCasa : casaNova}
+                  onChange={(e) => setCasaNova(e.target.value)}
                   className={cn(inputClass, "bg-card")}
                 >
                   {casas.map((casa) => (
@@ -476,6 +514,8 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
                   autoCapitalize="none"
                   spellCheck={false}
                   placeholder="profissional@email.com"
+                  value={emailNovo}
+                  onChange={(e) => setEmailNovo(e.target.value)}
                   className={inputClass}
                 />
               </div>
@@ -488,7 +528,8 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
                   id={`${formId}-cargo`}
                   name="cargo"
                   required
-                  defaultValue="FUNCIONARIO"
+                  value={cargoNovo}
+                  onChange={(e) => setCargoNovo(e.target.value)}
                   className={cn(inputClass, "bg-card")}
                 >
                   <option value="FUNCIONARIO">Funcionário</option>
@@ -600,7 +641,8 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
               membro={membro}
               mostrarCasa={filtroCasa === "TODAS" && casas.length > 1}
               onAviso={setAvisoOk}
-              onPedirRemocao={abrirRemocao}
+              onPedirRemocao={(m) => abrirModal("remover", m)}
+              onPedirPromocao={(m) => abrirModal("promover", m)}
             />
           ))}
         </ul>
@@ -610,9 +652,12 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
         ref={dialogRef}
         aria-labelledby={tituloDialogId}
         aria-describedby={descDialogId}
+        onCancel={(e) => {
+          if (ocupandoModal) e.preventDefault();
+        }}
         onClose={(e) => {
           e.currentTarget.returnValue = "";
-          setAlvoRemover(null);
+          setAlvoModal(null);
           setErroDialogo("");
         }}
         className="m-auto w-[calc(100%-2rem)] max-w-md rounded-sm border border-border bg-card p-0 text-foreground shadow-xl"
@@ -620,12 +665,14 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
         <div className="p-6">
           <div className="flex items-start justify-between gap-3">
             <h2 id={tituloDialogId} className="font-heading text-lg font-semibold">
-              Remover profissional?
+              {alvoModal?.tipo === "promover"
+                ? "Promover para Gestor?"
+                : "Remover profissional?"}
             </h2>
             <button
               type="button"
               onClick={() => dialogRef.current?.close("cancel")}
-              disabled={removendo}
+              disabled={ocupandoModal}
               aria-label="Fechar janela"
               className="inline-flex size-9 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
             >
@@ -634,13 +681,24 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
           </div>
 
           <p id={descDialogId} className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            <span className="font-semibold text-foreground">
-              {alvoRemover?.nome ?? "Este profissional"}
-            </span>{" "}
-            perderá o acesso a{" "}
-            <span className="font-medium text-foreground">{alvoRemover?.casaNome}</span>. Se ele
-            já tiver registros de cuidados lançados, use o controle de ativação para desativar o
-            acesso mantendo o histórico.
+            {alvoModal?.tipo === "promover" ? (
+              <>
+                <span className="font-semibold text-foreground">{alvoModal.membro.nome}</span>{" "}
+                passará a ter acesso administrativo completo a{" "}
+                <span className="font-medium text-foreground">{alvoModal.membro.casaNome}</span>,
+                incluindo equipe, planos, financeiro e auditoria.
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-foreground">
+                  {alvoModal?.membro.nome ?? "Este profissional"}
+                </span>{" "}
+                perderá o acesso a{" "}
+                <span className="font-medium text-foreground">{alvoModal?.membro.casaNome}</span>.
+                Se ele já tiver registros de cuidados lançados, use o controle de ativação para
+                desativar o acesso mantendo o histórico.
+              </>
+            )}
           </p>
 
           {erroDialogo ? (
@@ -657,25 +715,38 @@ export default function GerenciadorEquipe({ casas, membros, casaInicialId }: Pro
             <button
               ref={cancelarBtnRef}
               type="button"
+              autoFocus
               onClick={() => dialogRef.current?.close("cancel")}
-              disabled={removendo}
+              disabled={ocupandoModal}
               className="inline-flex min-h-11 items-center justify-center rounded-sm border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary disabled:opacity-50"
             >
               Cancelar
             </button>
 
-            <form action={acaoRemover}>
-              <input type="hidden" name="id" value={alvoRemover?.id ?? ""} />
-              <input type="hidden" name="casaId" value={alvoRemover?.casaId ?? ""} />
+            {alvoModal?.tipo === "promover" ? (
               <button
-                type="submit"
-                disabled={removendo || !alvoRemover}
-                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-sm bg-danger px-4 py-2 text-sm font-semibold text-danger-foreground transition-opacity hover:opacity-90 disabled:opacity-60 sm:w-auto"
+                type="button"
+                onClick={confirmarPromocao}
+                disabled={ocupandoModal}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-sm bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
               >
-                {removendo ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
-                {removendo ? "Removendo..." : "Remover da equipe"}
+                {promovendo ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+                {promovendo ? "Promovendo..." : "Confirmar promoção"}
               </button>
-            </form>
+            ) : (
+              <form action={acaoRemover}>
+                <input type="hidden" name="id" value={alvoModal?.membro.id ?? ""} />
+                <input type="hidden" name="casaId" value={alvoModal?.membro.casaId ?? ""} />
+                <button
+                  type="submit"
+                  disabled={ocupandoModal || !alvoModal}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-sm bg-danger px-4 py-2 text-sm font-semibold text-danger-foreground transition-opacity hover:opacity-90 disabled:opacity-60 sm:w-auto"
+                >
+                  {removendo ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+                  {removendo ? "Removendo..." : "Remover da equipe"}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </dialog>

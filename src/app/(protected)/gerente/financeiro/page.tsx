@@ -1,45 +1,19 @@
 import Link from "next/link";
-import {
-  Building2,
-  CheckCircle2,
-  Clock,
-  Users,
-  Wallet,
-  type LucideIcon,
-} from "lucide-react";
+import { Building2 } from "lucide-react";
 import GerenciadorFinanceiro from "@/components/painel/GerenciadorFinanceiro";
 import { financeiroDoGestor } from "@/lib/painel/dados";
-import { reais } from "@/lib/painel/formato";
 
 export const metadata = { title: "Financeiro" };
 
-function Stat({
-  rotulo,
-  valor,
-  detalhe,
-  Icone,
-}: {
-  rotulo: string;
-  valor: string;
-  detalhe: string;
-  Icone: LucideIcon;
-}) {
-  return (
-    <div className="rounded-sm border border-border bg-card p-5">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          {rotulo}
-        </p>
-        <Icone className="size-4 shrink-0 text-brand-strong" aria-hidden="true" />
-      </div>
-      <p className="mt-3 font-heading text-2xl font-semibold leading-none">{valor}</p>
-      <p className="mt-2 text-xs text-muted-foreground">{detalhe}</p>
-    </div>
-  );
-}
+type Props = {
+  searchParams: Promise<{ casa?: string }>;
+};
 
-export default async function FinanceiroGestorPage() {
-  const { casas, planos, candidatos, assinaturas, resumo } = await financeiroDoGestor();
+export default async function FinanceiroGestorPage({ searchParams }: Props) {
+  const [params, { casas, planos, candidatos, assinaturas }] = await Promise.all([
+    searchParams,
+    financeiroDoGestor(),
+  ]);
 
   const agora = new Date();
   const hojeIso = new Intl.DateTimeFormat("en-CA", {
@@ -86,47 +60,16 @@ export default async function FinanceiroGestorPage() {
           </Link>
         </div>
       ) : (
-        <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Stat
-              rotulo="Assinaturas ativas"
-              valor={String(resumo.assinaturasAtivas)}
-              detalhe="Famílias com plano ativo"
-              Icone={Users}
-            />
-            <Stat
-              rotulo="Receita mensal"
-              valor={`R$ ${reais(resumo.receitaMensal)}`}
-              detalhe="Soma dos planos ativos"
-              Icone={Wallet}
-            />
-            <Stat
-              rotulo="Em aberto"
-              valor={`R$ ${reais(resumo.totalEmAberto)}`}
-              detalhe={
-                resumo.faturasAtrasadas > 0
-                  ? `${resumo.faturasAtrasadas} fatura${resumo.faturasAtrasadas === 1 ? "" : "s"} em atraso`
-                  : "Pendentes de pagamento"
-              }
-              Icone={Clock}
-            />
-            <Stat
-              rotulo="Total recebido"
-              valor={`R$ ${reais(resumo.totalPago)}`}
-              detalhe="Faturas marcadas como pagas"
-              Icone={CheckCircle2}
-            />
-          </div>
-
-          <GerenciadorFinanceiro
-            casas={casas}
-            planos={planos}
-            candidatos={candidatos}
-            assinaturas={assinaturas}
-            hojeIso={hojeIso}
-            proximoVencimentoIso={proximoVencimentoIso}
-          />
-        </>
+        <GerenciadorFinanceiro
+          key={params.casa ?? ""}
+          casas={casas}
+          planos={planos}
+          candidatos={candidatos}
+          assinaturas={assinaturas}
+          casaInicialId={params.casa}
+          hojeIso={hojeIso}
+          proximoVencimentoIso={proximoVencimentoIso}
+        />
       )}
     </div>
   );

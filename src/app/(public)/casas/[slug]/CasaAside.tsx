@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, BedDouble, Mail, Phone } from "lucide-react";
 import type { IlpiCompleta } from "@/lib/ilpi/tipos";
-
-const brl = (valor: number) => valor.toLocaleString("pt-BR");
+import { reais } from "@/lib/painel/formato";
 
 export default function CasaAside({ casa }: { casa: IlpiCompleta }) {
   return (
@@ -12,7 +11,7 @@ export default function CasaAside({ casa }: { casa: IlpiCompleta }) {
           {casa.mensalidade !== null ? "Mensalidade a partir de" : "Mensalidade"}
         </p>
         <p className="mt-1 font-heading text-3xl font-semibold">
-          {casa.mensalidade !== null ? `R$ ${brl(casa.mensalidade)}` : "Sob consulta"}
+          {casa.mensalidade !== null ? `R$ ${reais(casa.mensalidade)}` : "Sob consulta"}
           {casa.mensalidade !== null ? (
             <span className="font-sans text-sm font-normal text-muted-foreground">/mês</span>
           ) : null}
@@ -53,12 +52,22 @@ export default function CasaAside({ casa }: { casa: IlpiCompleta }) {
 
         <div className="mt-5 space-y-2 border-t border-border pt-5 font-sans text-xs text-muted-foreground">
           <p className="flex items-center gap-2">
-            <Phone className="size-3.5" aria-hidden="true" />
-            {casa.telefone}
+            <Phone className="size-3.5 shrink-0" aria-hidden="true" />
+            <a
+              href={`tel:${casa.telefone.replace(/[^\d+]/g, "")}`}
+              className="transition-colors hover:text-brand-strong"
+            >
+              {casa.telefone}
+            </a>
           </p>
           <p className="flex items-center gap-2 break-all">
-            <Mail className="size-3.5" aria-hidden="true" />
-            {casa.email}
+            <Mail className="size-3.5 shrink-0" aria-hidden="true" />
+            <a
+              href={`mailto:${casa.email}`}
+              className="transition-colors hover:text-brand-strong"
+            >
+              {casa.email}
+            </a>
           </p>
         </div>
       </div>

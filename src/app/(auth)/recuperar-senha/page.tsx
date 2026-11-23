@@ -1,18 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { recuperarSenha, type Estado } from "../actions";
 
 const inputClass =
-  "w-full border-b border-input bg-transparent py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-brand-strong";
+  "w-full border-b border-input bg-transparent py-2.5 text-base outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-brand-strong sm:text-sm";
 
 const labelClass =
   "mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground";
 
 export default function RecuperarSenha() {
   const [estado, acao, enviando] = useActionState<Estado, FormData>(recuperarSenha, {});
+  const [email, setEmail] = useState("");
 
   return (
     <div className="w-full max-w-md">
@@ -34,6 +35,8 @@ export default function RecuperarSenha() {
               type="email"
               autoComplete="email"
               placeholder="seu@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className={inputClass}
             />
           </div>

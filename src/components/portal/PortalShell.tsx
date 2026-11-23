@@ -28,7 +28,7 @@ const NAV = [
 ];
 
 type Props = {
-  usuario: { nome: string; email: string };
+  usuario: { nome: string; email: string; avatarUrl?: string | null };
   children: React.ReactNode;
 };
 
@@ -93,9 +93,19 @@ export default function PortalShell({ usuario, children }: Props) {
 
         <div className="mt-auto border-t border-border p-3">
           <div className="flex items-center gap-2 px-3 py-2">
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-soft font-heading text-xs font-bold text-brand-strong">
-              {usuario.nome.slice(0, 1).toUpperCase()}
-            </span>
+            {usuario.avatarUrl ? (
+              <Image
+                src={usuario.avatarUrl}
+                alt=""
+                width={32}
+                height={32}
+                className="size-8 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-soft font-heading text-xs font-bold text-brand-strong">
+                {usuario.nome.slice(0, 1).toUpperCase()}
+              </span>
+            )}
             <span className="min-w-0">
               <span className="block truncate text-sm font-medium">{usuario.nome}</span>
               <span className="block truncate text-xs text-muted-foreground">
@@ -124,11 +134,24 @@ export default function PortalShell({ usuario, children }: Props) {
             <Image src="/ginkle-mark.svg" alt="" width={24} height={24} className="h-6 w-6" />
             <span className="font-heading text-base font-bold tracking-tight">Ginkle</span>
           </Link>
-          <div className="flex items-center gap-2">
-            <span className="max-w-32 truncate text-xs text-muted-foreground">
-              {usuario.nome}
-            </span>
+          <div className="flex items-center gap-1">
+            <Link
+              href="/"
+              aria-label="Ver o site"
+              className="inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <Globe className="size-4" aria-hidden="true" />
+            </Link>
             <ThemeToggle />
+            <form action={sair}>
+              <button
+                type="submit"
+                aria-label="Sair"
+                className="inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              >
+                <LogOut className="size-4" aria-hidden="true" />
+              </button>
+            </form>
           </div>
         </header>
 
@@ -143,7 +166,7 @@ export default function PortalShell({ usuario, children }: Props) {
 
       <nav
         aria-label="Atalhos do portal"
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {NAV.map((item) => (
           <Link
@@ -167,15 +190,6 @@ export default function PortalShell({ usuario, children }: Props) {
           <Building2 className="size-5" aria-hidden="true" />
           <span className="max-w-full truncate">Casas</span>
         </Link>
-        <form action={sair} className="min-w-0">
-          <button
-            type="submit"
-            className="flex w-full min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[0.68rem] font-medium text-muted-foreground transition-colors"
-          >
-            <LogOut className="size-5" aria-hidden="true" />
-            <span className="max-w-full truncate">Sair</span>
-          </button>
-        </form>
       </nav>
     </div>
   );

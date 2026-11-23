@@ -6,8 +6,13 @@ import { chaveDia } from "@/lib/painel/formato";
 
 export const metadata = { title: "Auditoria" };
 
-export default async function AuditoriaGestorPage() {
-  const { casas, registros, acoes } = await auditoriaDoGestor();
+type Props = {
+  searchParams: Promise<{ casa?: string }>;
+};
+
+export default async function AuditoriaGestorPage({ searchParams }: Props) {
+  const [params, { casas, registros, acoes, registrosLimitados, acoesLimitadas }] =
+    await Promise.all([searchParams, auditoriaDoGestor()]);
   const diaHoje = chaveDia(new Date());
 
   return (
@@ -41,9 +46,13 @@ export default async function AuditoriaGestorPage() {
         </div>
       ) : (
         <PainelAuditoria
+          key={params.casa ?? ""}
           casas={casas}
           registros={registros}
           acoes={acoes}
+          casaInicialId={params.casa}
+          registrosLimitados={registrosLimitados}
+          acoesLimitadas={acoesLimitadas}
           diaHoje={diaHoje}
         />
       )}

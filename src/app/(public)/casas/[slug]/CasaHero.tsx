@@ -64,8 +64,8 @@ export default function CasaHero({ casa }: { casa: IlpiCompleta }) {
           </div>
         ) : (
           <div className="mt-5 space-y-2">
-            <div className="grid gap-2 sm:grid-cols-[2fr_1fr] sm:grid-rows-2">
-              <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-muted sm:row-span-2 sm:aspect-auto sm:min-h-[22rem]">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr] sm:grid-rows-2">
+              <div className="relative col-span-2 aspect-[16/10] overflow-hidden rounded-xl bg-muted sm:col-span-1 sm:row-span-2 sm:aspect-auto sm:min-h-[22rem]">
                 <Image
                   src={fotos[0].url}
                   alt={fotos[0].legenda ?? `Fachada de ${casa.nome}, em ${casa.cidade}`}
@@ -84,13 +84,13 @@ export default function CasaHero({ casa }: { casa: IlpiCompleta }) {
               {fotos.slice(1, 3).map((foto, idx) => (
                 <div
                   key={`${foto.url}-${idx}`}
-                  className="relative hidden overflow-hidden rounded-xl bg-muted sm:block"
+                  className="relative aspect-[4/3] overflow-hidden rounded-xl bg-muted sm:aspect-auto"
                 >
                   <Image
                     src={foto.url}
                     alt={foto.legenda ?? `Interior de ${casa.nome}`}
                     fill
-                    sizes="33vw"
+                    sizes="(max-width: 640px) 50vw, 33vw"
                     className="object-cover"
                   />
                 </div>
@@ -99,7 +99,7 @@ export default function CasaHero({ casa }: { casa: IlpiCompleta }) {
 
             {fotos.length > 3 ? (
               <ul className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-                {fotos.slice(3, 9).map((foto, idx) => (
+                {fotos.slice(3, 12).map((foto, idx) => (
                   <li
                     key={`${foto.url}-extra-${idx}`}
                     className="relative aspect-[4/3] overflow-hidden rounded-lg bg-muted"
