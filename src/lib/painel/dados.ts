@@ -1142,3 +1142,164 @@ export async function financeiroDoGestor(): Promise<FinanceiroDoGestor> {
     },
   };
 }
+
+export type RegistroAuditoria = {
+  id: string;
+  casaId: string;
+  casaNome: string;
+  residenteId: string;
+  residenteNome: string;
+  tipo: string;
+  titulo: string;
+  descricao: string;
+  criadoEm: string;
+  sincronizadoEm: string;
+  atrasado: boolean;
+  autorNome: string;
+  autorCargo: string;
+};
+
+export type AcaoAuditoria = {
+  id: string;
+  casaId: string;
+  casaNome: string;
+  acao: string;
+  entidade: string;
+  idEntidade: string;
+  detalhes: string | null;
+  criadoEm: string;
+  sincronizadoEm: string;
+  autorNome: string;
+  autorEmail: string;
+};
+
+export type AuditoriaDoGestor = {
+  casas: { id: string; nome: string; slug: string }[];
+  registros: RegistroAuditoria[];
+  acoes: AcaoAuditoria[];
+};
+
+export async function auditoriaDoGestor(): Promise<AuditoriaDoGestor> {
+  const vazio: AuditoriaDoGestor = { casas: [], registros: [], acoes: [] };
+
+  const supabase = await createClientOpcional();
+  if (!supabase) return vazio;
+
+  const ids = await idsDasMinhasCasas(supabase);
+  if (ids.length === 0) return vazio;
+
+  const [casasRes, residentesRes, logsRes] = await Promise.all([
+    supabase
+      .from("ilpi")
+      .select("id_ilpi, nome, slug")
+      .in("id_ilpi", ids)
+      .order("nome", { ascending: true }),
+    supabase
+      .from("residente")
+      .select("id_residente, id_ilpi, nome")
+      .in("id_ilpi", ids),
+    supabase
+      .from("log_acao")
+      .select(
+        "id_log, id_usuario, id_ilpi, acao, entidade, id_entidade, detalhes, criado_em_dispositivo, sincronizado_em_servidor, usuario(nome, email)",
+      )
+      .in("id_ilpi", ids)
+      .order("criado_em_dispositivo", { ascending: false })
+      .limit(200),
+  ]);
+
+  const casas = ((casasRes.data ?? []) as unknown as {
+    id_ilpi: string;
+    nome: string;
+    slug: string;
+  }[]).map((c) => ({ id: c.id_ilpi, nome: c.nome, slug: c.slug }));
+
+  const casaPorId = new Map(casas.map((c) => [c.id, c]));
+
+  const residentesPorId = new Map<string, { nome: string; casaId: string }>();
+  for (const r of (residentesRes.data ?? []) as unknown as {
+    id_residente: string;
+    id_ilpi: string;
+    nome: string;
+  }[]) {
+    if (casaPorId.has(r.id_ilpi)) {
+      residentesPorId.set(r.id_residente, { nome: r.nome, casaId: r.id_ilpi });
+    }
+  }
+
+  const idsResidentes = [...residentesPorId.keys()];
+  const registros: RegistroAuditoria[] = [];
+
+  if (idsResidentes.length > 0) {
+    const { data: regData } = await supabase
+      .from("registro_timeline")
+      .select(
+        "id_registro, id_residente, tipo, titulo, descricao, criado_em_dispositivo, sincronizado_em_servidor, sincronizacao_atrasada, autor_nome, autor_cargo",
+      )
+      .in("id_residente", idsResidentes)
+      .order("criado_em_dispositivo", { ascending: false })
+      .limit(200);
+
+    for (const r of (regData ?? []) as unknown as {
+      id_registro: string;
+      id_residente: string;
+      tipo: string;
+      titulo: string;
+      descricao: string;
+      criado_em_dispositivo: string;
+      sincronizado_em_servidor: string;
+      sincronizacao_atrasada: boolean;
+      autor_nome: string | null;
+      autor_cargo: string | null;
+    }[]) {
+      const res = residentesPorId.get(r.id_residente);
+      if (!res) continue;
+      const casa = casaPorId.get(res.casaId);
+      if (!casa) continue;
+      registros.push({
+        id: r.id_registro,
+        casaId: casa.id,
+        casaNome: casa.nome,
+        residenteId: r.id_residente,
+        residenteNome: res.nome,
+        tipo: r.tipo,
+        titulo: r.titulo,
+        descricao: r.descricao,
+        criadoEm: r.criado_em_dispositivo,
+        sincronizadoEm: r.sincronizado_em_servidor,
+        atrasado: Boolean(r.sincronizacao_atrasada),
+        autorNome: r.autor_nome ?? "Profissional da equipe",
+        autorCargo: r.autor_cargo ?? "",
+      });
+    }
+  }
+
+  const acoes: AcaoAuditoria[] = ((logsRes.data ?? []) as unknown as {
+    id_log: string;
+    id_usuario: string;
+    id_ilpi: string | null;
+    acao: string;
+    entidade: string;
+    id_entidade: string;
+    detalhes: string | null;
+    criado_em_dispositivo: string;
+    sincronizado_em_servidor: string;
+    usuario: { nome: string; email: string } | null;
+  }[])
+    .filter((l): l is typeof l & { id_ilpi: string } => Boolean(l.id_ilpi && casaPorId.has(l.id_ilpi)))
+    .map((l) => ({
+      id: l.id_log,
+      casaId: l.id_ilpi,
+      casaNome: casaPorId.get(l.id_ilpi)!.nome,
+      acao: l.acao,
+      entidade: l.entidade,
+      idEntidade: l.id_entidade,
+      detalhes: l.detalhes,
+      criadoEm: l.criado_em_dispositivo,
+      sincronizadoEm: l.sincronizado_em_servidor,
+      autorNome: l.usuario?.nome ?? "Usuário autorizado",
+      autorEmail: l.usuario?.email ?? "",
+    }));
+
+  return { casas, registros, acoes };
+}

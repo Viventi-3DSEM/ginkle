@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   MoreHorizontal,
+  ShieldCheck,
   Tag,
   UserCog,
   Users,
@@ -58,6 +59,13 @@ const NAV_SECUNDARIO = [
     label: "Financeiro",
     curto: "Financeiro",
     Icone: Wallet,
+    exato: false,
+  },
+  {
+    href: "/gerente/auditoria",
+    label: "Auditoria",
+    curto: "Auditoria",
+    Icone: ShieldCheck,
     exato: false,
   },
 ];

@@ -166,7 +166,10 @@ export default async function PainelPage() {
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Bloco titulo="Últimos registros da equipe">
+        <Bloco
+          titulo="Últimos registros da equipe"
+          acao={{ href: "/gerente/auditoria", label: "Ver auditoria" }}
+        >
           {atividade.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Nenhum cuidado registrado nos últimos sete dias.
