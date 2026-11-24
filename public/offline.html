@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#174f32" />
+    <title>Sem conexão · Ginkle</title>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("ginkle-theme");
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+          }
+          if (t === "dark") document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
+    <style>
+      :root {
+        --bg: #f4f8f4;
+        --fg: #183d29;
+        --muted: #526b5a;
+        --card: #ffffff;
+        --border: #dce8de;
+        --primary: #174f32;
+        --primary-fg: #ffffff;
+      }
+      .dark {
+        --bg: #0f1f10;
+        --fg: #e4f0e5;
+        --muted: #8fab91;
+        --card: #1e2b1f;
+        --border: #2a532c;
+        --primary: #7ab07f;
+        --primary-fg: #0f1f10;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main {
+        width: 100%;
+        max-width: 26rem;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 2rem 1.75rem;
+        text-align: center;
+      }
+      .logo {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 1.25rem;
+        border-radius: 12px;
+        background: #174f32;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .eyebrow {
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 0.5rem;
+      }
+      h1 {
+        font-size: 1.35rem;
+        line-height: 1.25;
+        margin: 0 0 0.75rem;
+      }
+      p {
+        font-size: 0.9375rem;
+        line-height: 1.55;
+        color: var(--muted);
+        margin: 0 0 1.5rem;
+      }
+      .acoes {
+        display: flex;
+        flex-direction: column;
+        gap: 0.625rem;
+      }
+      button,
+      a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border-radius: 4px;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      button {
+        border: 0;
+        background: var(--primary);
+        color: var(--primary-fg);
+      }
+      a {
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--fg);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="logo" aria-hidden="true">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="36"
+          height="36"
+          viewBox="690 690 620 620"
+          style="fill-rule: evenodd; clip-rule: evenodd"
+        >
+          <g transform="matrix(1.009766,0,0,1.009766,487.858038,475.098239)">
+            <path
+              d="M514.959,482.508C516.996,398.53 510.672,309.28 527.423,286.437C560.832,240.878 743.576,350.463 719.046,399.264C708.122,420.999 601.925,475.958 540.766,571.668C530.033,588.465 523.688,607.308 524.553,611.484C526.792,622.295 549.638,574.321 590.131,531.155C596.063,524.831 629.484,489.204 670.213,458.12C719.227,420.713 731.917,417.064 742.503,418.474C762.54,421.142 781.158,462.581 768.075,479.172C766.093,481.687 762.4,486.37 731.435,495.281C653.419,517.733 570.39,560.684 573.748,572.451C576.914,583.544 606.911,556.017 681.658,526.942C747.054,501.504 763.334,504.015 770.572,505.132C795.944,509.046 793.758,568.551 781.161,593.326C755.166,644.45 710.556,607.594 677.315,593.913C591.368,558.541 544.06,605.387 530.206,643.393C510.767,696.723 534.778,736.745 511.544,739.803C490.466,742.576 492.135,729.639 492.67,703.503C493.853,645.71 479.723,613.252 435.303,590.887C374.465,560.255 310.957,610.503 282.381,618.063C233.767,630.925 217.913,566.608 226.178,528.423C229.888,511.284 235.196,498.172 271.587,507.151C347.202,525.807 421.039,570.113 431.581,574.294C440.611,577.876 442.186,572.775 439.19,568.726C437.77,566.806 433.488,561.019 415.327,550.794C334.842,505.481 268.133,494.045 252.642,484.284C228.679,469.185 249.464,426.946 267.594,419.741C270.585,418.552 281.987,414.02 306.273,430.827C436.651,521.058 469.718,591.531 481.732,605.303C501.482,627.942 484.99,591.345 483.506,588.497C473.727,569.726 453.873,531.275 372.85,464.088C303.642,406.698 296.152,408.943 293.325,390.52C286.469,345.855 456.252,236.806 490.063,289.778C507.566,317.199 492.499,476.207 505.333,551.531C508.82,572 514.407,530.508 514.959,482.508Z"
+              fill="#7ab07f"
+            />
+            <path
+              d="M469.502,750.716C477.101,750.65 540.386,750.098 564.488,750.939C613.335,752.644 651.485,753.691 648.142,758.286C642.972,765.392 454.447,764.926 403.508,762.327C376.401,760.944 365.732,760.586 366.508,757.504C368.026,751.479 461.245,750.778 469.502,750.716Z"
+              fill="#8fab91"
+            />
+          </g>
+        </svg>
+      </div>
+      <p class="eyebrow">Ginkle · Modo offline</p>
+      <h1>Você está sem conexão</h1>
+      <p>
+        Esta página precisa de internet para carregar dados atualizados. Assim
+        que o sinal voltar, o aplicativo recarrega automaticamente e sincroniza
+        eventuais registros pendentes.
+      </p>
+      <div class="acoes">
+        <button type="button" onclick="window.location.reload()">
+          Tentar novamente
+        </button>
+        <a href="/">Voltar para a página inicial</a>
+      </div>
+    </main>
+    <script>
+      window.addEventListener("online", function () {
+        window.location.reload();
+      });
+    </script>
+  </body>
+</html>
