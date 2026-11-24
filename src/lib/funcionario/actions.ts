@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/env";
+import {
+  algumTermoInadequado,
+  contemTermoInadequado,
+  MENSAGEM_MODERACAO,
+} from "@/lib/validacao/moderacao";
 import type { TipoRegistro } from "./dados";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -63,6 +68,9 @@ export async function registrarCuidado(
   }
   if (descricao.length < 3 || descricao.length > 2000) {
     return { erro: "A descrição precisa ter entre 3 e 2000 caracteres.", permanente: true };
+  }
+  if (algumTermoInadequado(titulo, descricao)) {
+    return { erro: MENSAGEM_MODERACAO, permanente: true };
   }
 
   const dataDispositivo = new Date(criadoEmDispositivo);
@@ -190,6 +198,9 @@ export async function responderSolicitacaoEquipe(entrada: {
     if (parentesco.length < 2 || parentesco.length > 60) {
       return { erro: "Informe o parentesco (entre 2 e 60 caracteres) para vincular ao residente." };
     }
+    if (contemTermoInadequado(parentesco)) {
+      return { erro: MENSAGEM_MODERACAO };
+    }
   }
 
   const supabase = await createClient();
@@ -314,6 +325,7 @@ export async function enviarMensagemEquipe(
   const conteudo = conteudoBruto.trim();
   if (conteudo.length === 0) return { erro: "Digite uma mensagem antes de enviar." };
   if (conteudo.length > 2000) return { erro: "A mensagem pode ter no máximo 2000 caracteres." };
+  if (contemTermoInadequado(conteudo)) return { erro: MENSAGEM_MODERACAO };
 
   const supabase = await createClient();
   const {

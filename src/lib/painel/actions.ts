@@ -9,6 +9,11 @@ import { cnpjValido, formatarCnpj } from "@/lib/validacao/cnpj";
 import { formatarTelefone, telefoneValido } from "@/lib/validacao/telefone";
 import { slugificar, slugValido } from "@/lib/validacao/slug";
 import { parseValorMonetario } from "@/lib/validacao/moeda";
+import {
+  algumTermoInadequado,
+  contemTermoInadequado,
+  MENSAGEM_MODERACAO,
+} from "@/lib/validacao/moderacao";
 
 export type Estado = { erro?: string; ok?: string; casaId?: string };
 
@@ -96,6 +101,9 @@ function ler(form: FormData): { dados?: DadosCasa; erro?: string } {
   if (!/^[A-Z]{2}$/.test(uf)) return { erro: "Informe a UF com duas letras (ex.: SP)." };
   if (descricao.length > 2000) return { erro: "A descrição passa de 2000 caracteres." };
   if (destaque.length > 40) return { erro: "O selo de destaque aceita até 40 caracteres." };
+  if (algumTermoInadequado(nome, slug, endereco, cidade, bairro, descricao, destaque, ...tags)) {
+    return { erro: MENSAGEM_MODERACAO };
+  }
 
   const vagas = Number(vagasBruto || "0");
   if (!Number.isInteger(vagas) || vagas < 0 || vagas > 500) {
@@ -309,6 +317,9 @@ function lerDadosPlano(form: FormData): {
   if (descricao.length > 300) {
     return { erro: "A descrição do plano aceita até 300 caracteres." };
   }
+  if (algumTermoInadequado(nome, descricao)) {
+    return { erro: MENSAGEM_MODERACAO };
+  }
 
   return { dados: { nome, valor, descricao: descricao || null } };
 }
@@ -515,6 +526,9 @@ function lerDadosResidente(form: FormData, cpfAtual?: string): {
   if (observacoes.length > 2000) {
     return { erro: "As observações médicas aceitam até 2000 caracteres." };
   }
+  if (algumTermoInadequado(nome, observacoes)) {
+    return { erro: MENSAGEM_MODERACAO };
+  }
 
   const hojeIso = hojeBrasiliaIso();
   if (nascimento > hojeIso) {
@@ -628,6 +642,9 @@ export async function vincularFamiliar(_estado: Estado, form: FormData): Promise
   if (!EMAIL_RE.test(email)) return { erro: "Informe o e-mail da conta do familiar." };
   if (parentesco.length < 2 || parentesco.length > 60) {
     return { erro: "Informe o parentesco (ex.: Filha, Sobrinho)." };
+  }
+  if (contemTermoInadequado(parentesco)) {
+    return { erro: MENSAGEM_MODERACAO };
   }
 
   const supabase = await createClient();
@@ -1116,6 +1133,9 @@ export async function atualizarPerfil(_estado: Estado, form: FormData): Promise<
   if (nome.length < 3 || nome.length > 120) {
     return { erro: "Informe seu nome completo (entre 3 e 120 caracteres)." };
   }
+  if (contemTermoInadequado(nome)) {
+    return { erro: MENSAGEM_MODERACAO };
+  }
   if (telDigitos.length > 0 && !telefoneValido(telDigitos)) {
     return { erro: "Telefone incompleto. Use DDD + número (10 ou 11 dígitos)." };
   }
@@ -1300,6 +1320,9 @@ export async function registrarFotosCasa(
     if (!foto.url.startsWith("https://") || !caminho || !caminho.startsWith(`${casaId}/`)) {
       return { erro: "Endereço de foto inválido." };
     }
+    if (contemTermoInadequado(foto.legenda)) {
+      return { erro: MENSAGEM_MODERACAO };
+    }
   }
 
   const supabase = await createClient();
@@ -1344,6 +1367,9 @@ export async function atualizarLegendaFoto(
   if (!UUID_RE.test(fotoId) || !UUID_RE.test(casaId)) return { erro: "Foto não encontrada." };
 
   const limpa = legenda.trim().slice(0, 160) || null;
+  if (contemTermoInadequado(limpa)) {
+    return { erro: MENSAGEM_MODERACAO };
+  }
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("foto_ilpi")
@@ -1493,6 +1519,9 @@ export async function criarTurnoEscala(_estado: Estado, form: FormData): Promise
   }
   if (observacoes.length > 500) {
     return { erro: "As observações aceitam até 500 caracteres." };
+  }
+  if (contemTermoInadequado(observacoes)) {
+    return { erro: MENSAGEM_MODERACAO };
   }
 
   const supabase = await createClient();

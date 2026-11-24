@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseConfigurado } from "@/lib/supabase/env";
+import { contemTermoInadequado, MENSAGEM_MODERACAO } from "@/lib/validacao/moderacao";
 
 export type EstadoAcao = { erro?: string; ok?: string; id?: string };
 
@@ -155,6 +156,9 @@ export async function salvarAvaliacao(
   }
   if (comentario.length > 1000) {
     return { erro: "O comentário pode ter no máximo 1000 caracteres." };
+  }
+  if (contemTermoInadequado(comentario)) {
+    return { erro: MENSAGEM_MODERACAO };
   }
 
   const supabase = await createClient();
@@ -323,6 +327,9 @@ export async function enviarMensagemFamiliar(
   if (conteudo.length === 0) return { erro: "Digite uma mensagem antes de enviar." };
   if (conteudo.length > 2000) {
     return { erro: "A mensagem pode ter no máximo 2000 caracteres." };
+  }
+  if (contemTermoInadequado(conteudo)) {
+    return { erro: MENSAGEM_MODERACAO };
   }
 
   const supabase = await createClient();

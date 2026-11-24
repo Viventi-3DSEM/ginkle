@@ -9,6 +9,7 @@ import { contaDemoPorPapel, demoHabilitado, senhaDemo } from "@/lib/auth/demo";
 import { destinoSeguro } from "@/lib/auth/destino";
 import { cpfValido, soDigitos } from "@/lib/validacao/cpf";
 import { telefoneValido } from "@/lib/validacao/telefone";
+import { contemTermoInadequado, MENSAGEM_MODERACAO } from "@/lib/validacao/moderacao";
 
 export type Estado = { erro?: string; ok?: string };
 
@@ -96,6 +97,7 @@ export async function cadastrar(_estado: Estado, form: FormData): Promise<Estado
   const telefone = soDigitos(texto(form, "telefone"));
 
   if (nome.length < 3) return { erro: "Informe seu nome completo." };
+  if (contemTermoInadequado(nome)) return { erro: MENSAGEM_MODERACAO };
   if (!EMAIL_RE.test(email)) return { erro: "Informe um e-mail válido." };
   if (!cpfValido(cpf)) return { erro: "Informe um CPF válido. Confira os números." };
   if (telefone.length > 0 && !telefoneValido(telefone)) {

@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { DadosNovoRegistro, TipoRegistro } from "@/lib/funcionario/dados";
+import { algumTermoInadequado, MENSAGEM_MODERACAO } from "@/lib/validacao/moderacao";
 import { cn } from "@/lib/utils";
 import BannerFilaOffline from "./BannerFilaOffline";
 import { useOffline } from "./OfflineProvider";
@@ -303,6 +304,11 @@ export default function FormNovoRegistro({ dados, residenteInicial, tipoInicial 
       else if (novosErros.titulo) tituloRef.current?.focus();
       else if (novosErros.descricao) descricaoRef.current?.focus();
       else if (novosErros.horario) horaRef.current?.focus();
+      return;
+    }
+
+    if (algumTermoInadequado(tituloFinal, descricaoFinal)) {
+      setErroGeral(MENSAGEM_MODERACAO);
       return;
     }
 
