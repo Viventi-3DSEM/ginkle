@@ -102,9 +102,20 @@ export default function Footer() {
       </div>
 
       <div className="border-t border-white/10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-5 py-5 text-xs text-footer-muted sm:flex-row">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-5 py-5 text-xs text-footer-muted sm:flex-row">
           <p>© {new Date().getFullYear()} Ginkle. Projeto de TCC, ETEC Praia Grande.</p>
-          <p>Grupo Viventi · ODS 3, 10 e 16</p>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            <Link href="/termos" className="transition-colors hover:text-footer-foreground">
+              Termos de uso
+            </Link>
+            <Link href="/privacidade" className="transition-colors hover:text-footer-foreground">
+              Privacidade
+            </Link>
+            <span aria-hidden="true" className="hidden sm:inline">
+              ·
+            </span>
+            <span>Grupo Viventi · ODS 3, 10 e 16</span>
+          </div>
         </div>
       </div>
     </footer>

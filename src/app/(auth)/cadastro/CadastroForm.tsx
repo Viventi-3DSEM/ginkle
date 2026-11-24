@@ -179,6 +179,18 @@ export default function CadastroForm({ destino }: Props) {
             Criar conta
           </button>
 
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Ao criar sua conta, você concorda com os{" "}
+            <Link href="/termos" className="font-medium text-brand-strong hover:underline">
+              Termos de uso
+            </Link>{" "}
+            e a{" "}
+            <Link href="/privacidade" className="font-medium text-brand-strong hover:underline">
+              Política de privacidade
+            </Link>
+            .
+          </p>
+
           {estado.erro ? (
             <p
               role="alert"
