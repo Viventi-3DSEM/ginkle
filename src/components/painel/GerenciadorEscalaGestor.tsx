@@ -1,10 +1,19 @@
 "use client";
 
-import { useActionState, useId, useMemo, useState, useTransition } from "react";
+import {
+  useActionState,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { CalendarClock, Clock, Info, Loader2, Plus, Trash2 } from "lucide-react";
 import { criarTurnoEscala, removerTurnoEscala } from "@/lib/painel/actions";
 import type { MembroEquipe, TurnoEscalaGestor } from "@/lib/painel/dados";
 import { dataCurta, rotuloCargo } from "@/lib/painel/formato";
+import { cn } from "@/lib/utils";
 
 const OPCOES_TURNO = [
   { valor: "MANHA", rotulo: "Manhã", inicio: "07:00", fim: "13:00" },
@@ -22,11 +31,13 @@ const labelClass =
   "block text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground";
 
 export default function GerenciadorEscalaGestor({
+  casas,
   membros,
   turnos,
   disponivel,
   hojeIso,
 }: {
+  casas: { id: string; nome: string }[];
   membros: MembroEquipe[];
   turnos: TurnoEscalaGestor[];
   disponivel: boolean;
@@ -35,16 +46,73 @@ export default function GerenciadorEscalaGestor({
   const baseId = useId();
   const ativos = useMemo(() => membros.filter((m) => m.ativo), [membros]);
 
-  const [estado, acao, salvando] = useActionState(criarTurnoEscala, {});
   const [vinculoId, setVinculoId] = useState(ativos[0]?.id ?? "");
   const [data, setData] = useState(hojeIso);
   const [turno, setTurno] = useState<string>("MANHA");
   const [horaInicio, setHoraInicio] = useState("07:00");
   const [horaFim, setHoraFim] = useState("13:00");
   const [observacoes, setObservacoes] = useState("");
+  const [estado, acao, salvando] = useActionState(
+    async (prev: { erro?: string; ok?: string }, form: FormData) => {
+      const res = await criarTurnoEscala(prev, form);
+      if (res.ok) setObservacoes("");
+      return res;
+    },
+    {},
+  );
+  const [filtroCasa, setFiltroCasa] = useState("TODAS");
+  const [turnoParaRemover, setTurnoParaRemover] = useState<TurnoEscalaGestor | null>(null);
   const [erroRemover, setErroRemover] = useState("");
-  const [removendoId, setRemovendoId] = useState<string | null>(null);
-  const [, startRemocao] = useTransition();
+  const [removendo, startRemocao] = useTransition();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const cancelarBtnRef = useRef<HTMLButtonElement>(null);
+  const removendoRef = useRef(false);
+
+  const turnosFiltrados = useMemo(
+    () =>
+      filtroCasa === "TODAS" ? turnos : turnos.filter((t) => t.casaId === filtroCasa),
+    [turnos, filtroCasa],
+  );
+
+  useEffect(() => {
+    removendoRef.current = removendo;
+    const dialog = dialogRef.current;
+    if (dialog) dialog.setAttribute("closedby", removendo ? "none" : "any");
+  }, [removendo]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    dialog.setAttribute("closedby", removendoRef.current ? "none" : "any");
+    if ("closedBy" in HTMLDialogElement.prototype) return;
+
+    const fora = (e: PointerEvent) => {
+      const r = dialog.getBoundingClientRect();
+      return (
+        e.clientX < r.left ||
+        e.clientX > r.right ||
+        e.clientY < r.top ||
+        e.clientY > r.bottom
+      );
+    };
+
+    let pressionouFora = false;
+    const onDown = (e: PointerEvent) => {
+      pressionouFora = fora(e);
+    };
+    const onUp = (e: PointerEvent) => {
+      if (pressionouFora && fora(e) && !removendoRef.current) dialog.close();
+      pressionouFora = false;
+    };
+
+    dialog.addEventListener("pointerdown", onDown);
+    dialog.addEventListener("pointerup", onUp);
+    return () => {
+      dialog.removeEventListener("pointerdown", onDown);
+      dialog.removeEventListener("pointerup", onUp);
+    };
+  }, []);
 
   function aoTrocarTurno(novo: string) {
     setTurno(novo);
@@ -55,13 +123,28 @@ export default function GerenciadorEscalaGestor({
     }
   }
 
-  function remover(id: string) {
+  function pedirConfirmacaoRemocao(t: TurnoEscalaGestor) {
     setErroRemover("");
-    setRemovendoId(id);
+    setTurnoParaRemover(t);
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      cancelarBtnRef.current?.focus();
+    }
+  }
+
+  function confirmarRemocao() {
+    if (!turnoParaRemover) return;
+    setErroRemover("");
+    const alvoId = turnoParaRemover.id;
     startRemocao(async () => {
-      const res = await removerTurnoEscala(id);
-      if (res.erro) setErroRemover(res.erro);
-      setRemovendoId(null);
+      const res = await removerTurnoEscala(alvoId);
+      if (res.erro) {
+        setErroRemover(res.erro);
+        return;
+      }
+      dialogRef.current?.close();
+      setTurnoParaRemover(null);
     });
   }
 
@@ -229,24 +312,62 @@ export default function GerenciadorEscalaGestor({
           </form>
 
           <div className="rounded-sm border border-border bg-card p-5 lg:col-span-2">
-            <h3 className="font-heading text-base font-semibold">
-              Turnos cadastrados ({turnos.length})
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-heading text-base font-semibold">
+                Turnos cadastrados ({turnosFiltrados.length})
+              </h3>
 
-            {erroRemover ? (
-              <p role="alert" className="mt-2 text-xs font-medium text-danger">
-                {erroRemover}
-              </p>
-            ) : null}
+              {casas.length > 1 ? (
+                <div
+                  className="flex flex-wrap gap-1.5"
+                  role="group"
+                  aria-label="Filtrar turnos por casa"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={filtroCasa === "TODAS"}
+                    onClick={() => setFiltroCasa("TODAS")}
+                    className={cn(
+                      "min-h-8 rounded-sm px-2.5 py-1 text-xs font-medium transition-colors",
+                      filtroCasa === "TODAS"
+                        ? "bg-primary text-primary-foreground"
+                        : "border border-border bg-background text-muted-foreground hover:bg-secondary",
+                    )}
+                  >
+                    Todas as casas
+                  </button>
+                  {casas.map((casa) => (
+                    <button
+                      key={casa.id}
+                      type="button"
+                      aria-pressed={filtroCasa === casa.id}
+                      onClick={() => setFiltroCasa(casa.id)}
+                      className={cn(
+                        "min-h-8 rounded-sm px-2.5 py-1 text-xs font-medium transition-colors",
+                        filtroCasa === casa.id
+                          ? "bg-primary text-primary-foreground"
+                          : "border border-border bg-background text-muted-foreground hover:bg-secondary",
+                      )}
+                    >
+                      {casa.nome}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
 
-            {turnos.length === 0 ? (
+            {turnosFiltrados.length === 0 ? (
               <div className="mt-6 py-6 text-center text-sm text-muted-foreground">
                 <CalendarClock className="mx-auto size-7 text-muted-foreground" aria-hidden="true" />
-                <p className="mt-2">Nenhum turno cadastrado ainda.</p>
+                <p className="mt-2">
+                  {turnos.length === 0
+                    ? "Nenhum turno cadastrado ainda."
+                    : "Nenhum turno cadastrado para esta casa."}
+                </p>
               </div>
             ) : (
               <ul className="mt-4 divide-y divide-border">
-                {turnos.map((t) => (
+                {turnosFiltrados.map((t) => (
                   <li
                     key={t.id}
                     className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0 text-sm"
@@ -277,16 +398,11 @@ export default function GerenciadorEscalaGestor({
 
                     <button
                       type="button"
-                      disabled={removendoId === t.id}
-                      onClick={() => remover(t.id)}
+                      onClick={() => pedirConfirmacaoRemocao(t)}
                       aria-label={`Remover turno de ${t.profissionalNome} em ${dataCurta(t.data)}`}
-                      className="inline-flex size-9 items-center justify-center rounded-sm border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-danger disabled:opacity-50"
+                      className="inline-flex size-9 items-center justify-center rounded-sm border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-danger"
                     >
-                      {removendoId === t.id ? (
-                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                      ) : (
-                        <Trash2 className="size-4" aria-hidden="true" />
-                      )}
+                      <Trash2 className="size-4" aria-hidden="true" />
                     </button>
                   </li>
                 ))}
@@ -295,6 +411,73 @@ export default function GerenciadorEscalaGestor({
           </div>
         </div>
       )}
+
+      <dialog
+        ref={dialogRef}
+        aria-labelledby={`${baseId}-remover-titulo`}
+        onCancel={(e) => {
+          if (removendo) e.preventDefault();
+        }}
+        onClose={(e) => {
+          e.currentTarget.returnValue = "";
+          if (!removendo) {
+            setTurnoParaRemover(null);
+            setErroRemover("");
+          }
+        }}
+        className="m-auto w-[calc(100%-2rem)] max-w-md rounded-sm border border-border bg-card p-6 text-foreground shadow-xl"
+      >
+        <h3 id={`${baseId}-remover-titulo`} className="font-heading text-lg font-semibold">
+          Remover turno da escala?
+        </h3>
+        {turnoParaRemover ? (
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            O plantão de{" "}
+            <strong className="font-semibold text-foreground">
+              {turnoParaRemover.profissionalNome}
+            </strong>{" "}
+            em{" "}
+            <strong className="font-semibold text-foreground">
+              {dataCurta(turnoParaRemover.data)}
+            </strong>{" "}
+            ({turnoParaRemover.horaInicio} – {turnoParaRemover.horaFim}, {turnoParaRemover.casaNome}
+            ) será removido da escala da equipe.
+          </p>
+        ) : null}
+
+        {erroRemover ? (
+          <p role="alert" className="mt-3 text-xs font-medium text-danger">
+            {erroRemover}
+          </p>
+        ) : null}
+
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <button
+            ref={cancelarBtnRef}
+            type="button"
+            disabled={removendo}
+            onClick={() => dialogRef.current?.close()}
+            className="inline-flex min-h-10 items-center justify-center rounded-sm border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={removendo}
+            onClick={confirmarRemocao}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-sm bg-danger px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {removendo ? (
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                Removendo...
+              </>
+            ) : (
+              "Remover turno"
+            )}
+          </button>
+        </div>
+      </dialog>
     </section>
   );
 }

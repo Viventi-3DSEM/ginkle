@@ -268,8 +268,34 @@ export default function ChatFamiliar({ dados, casaInicialId }: Props) {
       ) : null}
 
       {conversas.length > 0 ? (
-        <div className="grid gap-4 lg:grid-cols-[17rem_1fr]">
-          <aside className="rounded-sm border border-border bg-card p-3">
+        <div className="space-y-3 lg:grid lg:grid-cols-[17rem_1fr] lg:gap-4 lg:space-y-0">
+          {conversas.length > 1 ? (
+            <div className="rounded-sm border border-border bg-card p-3 lg:hidden">
+              <label
+                htmlFor={`${inputId}-conversa`}
+                className="block text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+              >
+                Conversa ({conversas.length})
+              </label>
+              <select
+                id={`${inputId}-conversa`}
+                value={conversaAtiva?.id ?? ""}
+                onChange={(e) => {
+                  setAtivaId(e.target.value);
+                  setErro("");
+                }}
+                className="mt-1 w-full cursor-pointer border-b border-input bg-card py-2 text-base font-medium text-foreground outline-none transition-colors focus:border-brand-strong sm:text-sm"
+              >
+                {conversas.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.casaNome}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          <aside className="hidden rounded-sm border border-border bg-card p-3 lg:block">
             <h2 className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Suas conversas
             </h2>
@@ -311,7 +337,7 @@ export default function ChatFamiliar({ dados, casaInicialId }: Props) {
           </aside>
 
           {conversaAtiva ? (
-            <section className="flex min-h-[26rem] flex-col rounded-sm border border-border bg-card">
+            <section className="flex min-h-[26rem] min-w-0 flex-col rounded-sm border border-border bg-card">
               <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
                 <div className="min-w-0">
                   <h2 className="truncate font-heading text-base font-semibold text-foreground">

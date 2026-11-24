@@ -27,6 +27,7 @@ export type UsuarioDoFuncionario = {
   email: string;
   avatarUrl: string | null;
   ehGestor: boolean;
+  aprovacoesPendentes: number;
   vinculos: VinculoOperacional[];
 };
 
@@ -149,7 +150,7 @@ export const usuarioDoFuncionario = cache(async (): Promise<UsuarioDoFuncionario
   const [supabase, user] = await Promise.all([createClientOpcional(), sessaoAtual()]);
   if (!supabase || !user) return null;
 
-  const [usuarioRes, vinculosRes] = await Promise.all([
+  const [usuarioRes, vinculosRes, pendentesRes] = await Promise.all([
     supabase
       .from("usuario")
       .select("nome, email, avatar_url")
@@ -161,6 +162,11 @@ export const usuarioDoFuncionario = cache(async (): Promise<UsuarioDoFuncionario
       .eq("id_usuario", user.id)
       .eq("ativo", true)
       .order("data_vinculo", { ascending: true }),
+    supabase
+      .from("adesao_ilpi")
+      .select("id_adesao", { count: "exact", head: true })
+      .eq("status", "PENDENTE")
+      .neq("id_usuario", user.id),
   ]);
 
   const linhas = (vinculosRes.data ?? []) as unknown as {
@@ -190,6 +196,7 @@ export const usuarioDoFuncionario = cache(async (): Promise<UsuarioDoFuncionario
     email: (usuarioRes.data?.email as string | undefined) ?? user.email ?? "",
     avatarUrl: (usuarioRes.data?.avatar_url as string | null | undefined) ?? null,
     ehGestor: vinculos.some((v) => v.cargo === "GESTOR"),
+    aprovacoesPendentes: pendentesRes.count ?? 0,
     vinculos,
   };
 });
@@ -406,57 +413,38 @@ export async function residentesDoFuncionario(): Promise<{
 
   const casaPorId = new Map(usuario.vinculos.map((v) => [v.casaId, v]));
   const idsCasas = [...casaPorId.keys()];
-
-  const { data: residentesData } = await supabase
-    .from("residente")
-    .select(
-      "id_residente, id_ilpi, nome, data_nascimento, sexo, data_ingresso, status, observacoes_medicas",
-    )
-    .in("id_ilpi", idsCasas)
-    .order("nome", { ascending: true });
-
-  const linhas = (residentesData ?? []) as unknown as LinhaResidenteBase[];
-  if (linhas.length === 0) return { casas: usuario.vinculos, residentes: [] };
-
-  const idsResidentes = linhas.map((r) => r.id_residente);
   const agora = new Date();
   const diaHoje = chaveDia(agora);
   const ha7d = new Date(agora.getTime() - 7 * 86_400_000).toISOString();
 
-  const [familiaresRes, registros7dRes] = await Promise.all([
+  // Uma única rodada paralela: residentes já vêm com familiares via join + registros 7d em paralelo.
+  const [residentesRes, registros7dRes] = await Promise.all([
     supabase
-      .from("familiar_residente")
+      .from("residente")
       .select(
-        "id_familiar_residente, id_residente, parentesco, responsavel_principal, usuario(nome, telefone)",
+        "id_residente, id_ilpi, nome, data_nascimento, sexo, data_ingresso, status, observacoes_medicas, familiar_residente(id_familiar_residente, parentesco, responsavel_principal, usuario(nome, telefone))",
       )
-      .in("id_residente", idsResidentes),
+      .in("id_ilpi", idsCasas)
+      .order("nome", { ascending: true }),
     supabase
       .from("registro_assistencial")
       .select("id_residente, tipo, titulo, criado_em_dispositivo")
-      .in("id_residente", idsResidentes)
       .gte("criado_em_dispositivo", ha7d)
-      .order("criado_em_dispositivo", { ascending: false }),
+      .order("criado_em_dispositivo", { ascending: false })
+      .limit(500),
   ]);
 
-  const familiaresPorResidente = new Map<string, ResidenteOperacional["familiares"]>();
-  for (const f of (familiaresRes.data ?? []) as unknown as {
-    id_familiar_residente: string;
-    id_residente: string;
-    parentesco: string;
-    responsavel_principal: boolean;
-    usuario: { nome: string; telefone: string | null } | null;
-  }[]) {
-    const lista = familiaresPorResidente.get(f.id_residente) ?? [];
-    lista.push({
-      id: f.id_familiar_residente,
-      nome: f.usuario?.nome ?? "Familiar",
-      parentesco: f.parentesco,
-      telefone: f.usuario?.telefone ?? null,
-      responsavelPrincipal: f.responsavel_principal,
-    });
-    familiaresPorResidente.set(f.id_residente, lista);
-  }
+  const linhas = (residentesRes.data ?? []) as unknown as (LinhaResidenteBase & {
+    familiar_residente: {
+      id_familiar_residente: string;
+      parentesco: string;
+      responsavel_principal: boolean;
+      usuario: { nome: string; telefone: string | null } | null;
+    }[] | null;
+  })[];
+  if (linhas.length === 0) return { casas: usuario.vinculos, residentes: [] };
 
+  const idsResidentesSet = new Set(linhas.map((r) => r.id_residente));
   const hojePorRes = new Map<string, number>();
   const setePorRes = new Map<string, number>();
   const ultimoPorRes = new Map<string, { quando: string; tipo: string; titulo: string }>();
@@ -467,6 +455,7 @@ export async function residentesDoFuncionario(): Promise<{
     titulo: string;
     criado_em_dispositivo: string;
   }[]) {
+    if (!idsResidentesSet.has(r.id_residente)) continue;
     setePorRes.set(r.id_residente, (setePorRes.get(r.id_residente) ?? 0) + 1);
     if (chaveDia(r.criado_em_dispositivo) === diaHoje) {
       hojePorRes.set(r.id_residente, (hojePorRes.get(r.id_residente) ?? 0) + 1);
@@ -483,9 +472,15 @@ export async function residentesDoFuncionario(): Promise<{
   const residentes: ResidenteOperacional[] = linhas.map((r) => {
     const vinc = casaPorId.get(r.id_ilpi)!;
     const ultimo = ultimoPorRes.get(r.id_residente);
-    const fams = (familiaresPorResidente.get(r.id_residente) ?? []).sort(
-      (a, b) => Number(b.responsavelPrincipal) - Number(a.responsavelPrincipal),
-    );
+    const fams = (r.familiar_residente ?? [])
+      .map((f) => ({
+        id: f.id_familiar_residente,
+        nome: f.usuario?.nome ?? "Familiar",
+        parentesco: f.parentesco,
+        telefone: f.usuario?.telefone ?? null,
+        responsavelPrincipal: f.responsavel_principal,
+      }))
+      .sort((a, b) => Number(b.responsavelPrincipal) - Number(a.responsavelPrincipal));
     return {
       id: r.id_residente,
       casaId: r.id_ilpi,
@@ -666,12 +661,28 @@ export async function historicoDoFuncionario(): Promise<HistoricoDoFuncionario> 
   const idsCasas = [...casaPorId.keys()];
   const meusVinculosIds = new Set(usuario.vinculos.map((v) => v.idVinculo));
 
-  const { data: residentesData } = await supabase
-    .from("residente")
-    .select("id_residente, id_ilpi, nome")
-    .in("id_ilpi", idsCasas);
+  // Uma única rodada paralela (a RLS já isola às casas do profissional).
+  const [residentesRes, timelineRes, meusRegRes] = await Promise.all([
+    supabase
+      .from("residente")
+      .select("id_residente, id_ilpi, nome")
+      .in("id_ilpi", idsCasas),
+    supabase
+      .from("registro_timeline")
+      .select(
+        "id_registro, id_residente, tipo, titulo, descricao, criado_em_dispositivo, sincronizado_em_servidor, sincronizacao_atrasada, autor_nome, autor_cargo",
+      )
+      .order("criado_em_dispositivo", { ascending: false })
+      .limit(201),
+    supabase
+      .from("registro_assistencial")
+      .select("id_registro, id_vinculo")
+      .in("id_vinculo", [...meusVinculosIds])
+      .order("criado_em_dispositivo", { ascending: false })
+      .limit(250),
+  ]);
 
-  const residentes = (residentesData ?? []) as unknown as {
+  const residentes = (residentesRes.data ?? []) as unknown as {
     id_residente: string;
     id_ilpi: string;
     nome: string;
@@ -679,57 +690,36 @@ export async function historicoDoFuncionario(): Promise<HistoricoDoFuncionario> 
   if (residentes.length === 0) return { casas: usuario.vinculos, registros: [], limitado: false };
 
   const residentePorId = new Map(residentes.map((r) => [r.id_residente, r]));
-  const idsResidentes = residentes.map((r) => r.id_residente);
-
-  const { data: timelineData } = await supabase
-    .from("registro_timeline")
-    .select(
-      "id_registro, id_residente, tipo, titulo, descricao, criado_em_dispositivo, sincronizado_em_servidor, sincronizacao_atrasada, autor_nome, autor_cargo",
-    )
-    .in("id_residente", idsResidentes)
-    .order("criado_em_dispositivo", { ascending: false })
-    .limit(201);
-
-  const linhasCruas = (timelineData ?? []) as unknown as LinhaTimelineCrua[];
+  const linhasCruas = ((timelineRes.data ?? []) as unknown as LinhaTimelineCrua[]).filter((t) =>
+    residentePorId.has(t.id_residente),
+  );
   const limitado = linhasCruas.length > 200;
   const linhas = limitado ? linhasCruas.slice(0, 200) : linhasCruas;
 
-  const idsRegistros = linhas.map((l) => l.id_registro);
-  const meusIds = new Set<string>();
+  const meusIds = new Set(
+    ((meusRegRes.data ?? []) as unknown as { id_registro: string }[]).map((r) => r.id_registro),
+  );
 
-  if (idsRegistros.length > 0) {
-    const { data: vinculosReg } = await supabase
-      .from("registro_assistencial")
-      .select("id_registro, id_vinculo")
-      .in("id_registro", idsRegistros);
-
-    for (const v of (vinculosReg ?? []) as unknown as { id_registro: string; id_vinculo: string }[]) {
-      if (meusVinculosIds.has(v.id_vinculo)) meusIds.add(v.id_registro);
-    }
-  }
-
-  const registros: RegistroDoTurno[] = linhas
-    .filter((t) => residentePorId.has(t.id_residente))
-    .map((t) => {
-      const res = residentePorId.get(t.id_residente)!;
-      const vinc = casaPorId.get(res.id_ilpi)!;
-      return {
-        id: t.id_registro,
-        residenteId: t.id_residente,
-        residenteNome: res.nome,
-        casaId: res.id_ilpi,
-        casaNome: vinc.casaNome,
-        tipo: t.tipo,
-        titulo: t.titulo,
-        descricao: t.descricao,
-        criadoEm: t.criado_em_dispositivo,
-        sincronizadoEm: t.sincronizado_em_servidor,
-        atrasado: Boolean(t.sincronizacao_atrasada),
-        autorNome: t.autor_nome ?? "Equipe",
-        autorCargo: t.autor_cargo ?? "",
-        ehMeu: meusIds.has(t.id_registro),
-      };
-    });
+  const registros: RegistroDoTurno[] = linhas.map((t) => {
+    const res = residentePorId.get(t.id_residente)!;
+    const vinc = casaPorId.get(res.id_ilpi)!;
+    return {
+      id: t.id_registro,
+      residenteId: t.id_residente,
+      residenteNome: res.nome,
+      casaId: res.id_ilpi,
+      casaNome: vinc.casaNome,
+      tipo: t.tipo,
+      titulo: t.titulo,
+      descricao: t.descricao,
+      criadoEm: t.criado_em_dispositivo,
+      sincronizadoEm: t.sincronizado_em_servidor,
+      atrasado: Boolean(t.sincronizacao_atrasada),
+      autorNome: t.autor_nome ?? "Equipe",
+      autorCargo: t.autor_cargo ?? "",
+      ehMeu: meusIds.has(t.id_registro),
+    };
+  });
 
   return { casas: usuario.vinculos, registros, limitado };
 }
@@ -867,10 +857,13 @@ export async function chatDaEquipe(): Promise<ChatDaEquipe> {
   const casaPorId = new Map(usuario.vinculos.map((v) => [v.casaId, v]));
   const idsCasas = [...casaPorId.keys()];
 
+  // Uma única rodada paralela usando joins PostgREST para mensagens e familiares.
   const [convRes, equipeRes, residentesRes, adesoesRes] = await Promise.all([
     supabase
       .from("conversa")
-      .select("id_conversa, id_ilpi, id_usuario, data_criacao, usuario(nome, email, telefone)")
+      .select(
+        "id_conversa, id_ilpi, id_usuario, data_criacao, usuario(nome, email, telefone), mensagem(id_mensagem, id_usuario, conteudo, data_hora)",
+      )
       .in("id_ilpi", idsCasas)
       .order("data_criacao", { ascending: false }),
     supabase
@@ -879,7 +872,7 @@ export async function chatDaEquipe(): Promise<ChatDaEquipe> {
       .in("id_ilpi", idsCasas),
     supabase
       .from("residente")
-      .select("id_residente, id_ilpi")
+      .select("id_residente, id_ilpi, familiar_residente(id_usuario, usuario(nome, email))")
       .in("id_ilpi", idsCasas),
     supabase
       .from("adesao_ilpi")
@@ -902,96 +895,69 @@ export async function chatDaEquipe(): Promise<ChatDaEquipe> {
     id_usuario: string;
     data_criacao: string;
     usuario: { nome: string; email: string; telefone: string | null } | null;
+    mensagem: { id_mensagem: string; id_usuario: string; conteudo: string; data_hora: string }[] | null;
   }[]).filter((c) => casaPorId.has(c.id_ilpi));
 
-  const idsConv = linhasConv.map((c) => c.id_conversa);
-  const convPorId = new Map(linhasConv.map((c) => [c.id_conversa, c]));
-  const mensagensPorConv = new Map<string, MensagemEquipeChat[]>();
-
-  if (idsConv.length > 0) {
-    const { data: msgData } = await supabase
-      .from("mensagem")
-      .select("id_mensagem, id_conversa, id_usuario, conteudo, data_hora")
-      .in("id_conversa", idsConv)
-      .order("data_hora", { ascending: true })
-      .limit(500);
-
-    for (const m of (msgData ?? []) as unknown as {
-      id_mensagem: string;
-      id_conversa: string;
-      id_usuario: string;
-      conteudo: string;
-      data_hora: string;
-    }[]) {
-      const conv = convPorId.get(m.id_conversa);
-      if (!conv) continue;
-      const ehFamiliar = m.id_usuario === conv.id_usuario;
-      const ehMinha = m.id_usuario === usuario.id;
-      const autorNome = ehMinha
-        ? "Você"
-        : ehFamiliar
-          ? (conv.usuario?.nome ?? "Familiar")
-          : (nomeEquipePorUsuario.get(m.id_usuario) ?? "Equipe");
-
-      const lista = mensagensPorConv.get(m.id_conversa) ?? [];
-      lista.push({
-        id: m.id_mensagem,
-        conversaId: m.id_conversa,
-        conteudo: m.conteudo,
-        dataHora: m.data_hora,
-        ehMinha,
-        ehFamiliar,
-        autorNome,
-      });
-      mensagensPorConv.set(m.id_conversa, lista);
-    }
-  }
-
   const conversas: ConversaEquipe[] = linhasConv
-    .map((c) => ({
-      id: c.id_conversa,
-      casaId: c.id_ilpi,
-      casaNome: casaPorId.get(c.id_ilpi)!.casaNome,
-      familiarId: c.id_usuario,
-      familiarNome: c.usuario?.nome ?? "Familiar",
-      familiarEmail: c.usuario?.email ?? "",
-      familiarTelefone: c.usuario?.telefone ?? null,
-      criadaEm: c.data_criacao,
-      mensagens: mensagensPorConv.get(c.id_conversa) ?? [],
-    }))
+    .map((c) => {
+      const mensagens: MensagemEquipeChat[] = [...(c.mensagem ?? [])]
+        .sort((a, b) => a.data_hora.localeCompare(b.data_hora))
+        .map((m) => {
+          const ehFamiliar = m.id_usuario === c.id_usuario;
+          const ehMinha = m.id_usuario === usuario.id;
+          const autorNome = ehMinha
+            ? "Você"
+            : ehFamiliar
+              ? (c.usuario?.nome ?? "Familiar")
+              : (nomeEquipePorUsuario.get(m.id_usuario) ?? "Equipe");
+          return {
+            id: m.id_mensagem,
+            conversaId: c.id_conversa,
+            conteudo: m.conteudo,
+            dataHora: m.data_hora,
+            ehMinha,
+            ehFamiliar,
+            autorNome,
+          };
+        });
+
+      return {
+        id: c.id_conversa,
+        casaId: c.id_ilpi,
+        casaNome: casaPorId.get(c.id_ilpi)!.casaNome,
+        familiarId: c.id_usuario,
+        familiarNome: c.usuario?.nome ?? "Familiar",
+        familiarEmail: c.usuario?.email ?? "",
+        familiarTelefone: c.usuario?.telefone ?? null,
+        criadaEm: c.data_criacao,
+        mensagens,
+      };
+    })
     .sort((a, b) => {
       const ultA = a.mensagens[a.mensagens.length - 1]?.dataHora ?? a.criadaEm;
       const ultB = b.mensagens[b.mensagens.length - 1]?.dataHora ?? b.criadaEm;
       return ultB.localeCompare(ultA);
     });
 
-  // Contatos (familiares ou solicitantes) ainda sem conversa aberta
   const chavesConversa = new Set(conversas.map((c) => `${c.casaId}:${c.familiarId}`));
   const contatosMap = new Map<string, ContatoDisponivelChat>();
 
-  const resLista = (residentesRes.data ?? []) as unknown as {
+  for (const r of (residentesRes.data ?? []) as unknown as {
     id_residente: string;
     id_ilpi: string;
-  }[];
-  if (resLista.length > 0) {
-    const casaPorRes = new Map(resLista.map((r) => [r.id_residente, r.id_ilpi]));
-    const { data: famData } = await supabase
-      .from("familiar_residente")
-      .select("id_residente, id_usuario, usuario(nome, email)")
-      .in("id_residente", resLista.map((r) => r.id_residente));
-
-    for (const f of (famData ?? []) as unknown as {
-      id_residente: string;
+    familiar_residente: {
       id_usuario: string;
       usuario: { nome: string; email: string } | null;
-    }[]) {
-      const casaId = casaPorRes.get(f.id_residente);
-      if (!casaId || !casaPorId.has(casaId) || !f.usuario) continue;
-      const chave = `${casaId}:${f.id_usuario}`;
+    }[] | null;
+  }[]) {
+    if (!casaPorId.has(r.id_ilpi)) continue;
+    for (const f of r.familiar_residente ?? []) {
+      if (!f.usuario) continue;
+      const chave = `${r.id_ilpi}:${f.id_usuario}`;
       if (chavesConversa.has(chave) || contatosMap.has(chave)) continue;
       contatosMap.set(chave, {
-        casaId,
-        casaNome: casaPorId.get(casaId)!.casaNome,
+        casaId: r.id_ilpi,
+        casaNome: casaPorId.get(r.id_ilpi)!.casaNome,
         usuarioId: f.id_usuario,
         nome: f.usuario.nome,
         email: f.usuario.email,

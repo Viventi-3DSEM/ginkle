@@ -54,6 +54,7 @@ export default async function EquipeGestorPage({ searchParams }: Props) {
             casaInicialId={params.casa}
           />
           <GerenciadorEscalaGestor
+            casas={casas}
             membros={membros}
             turnos={escalas.turnos}
             disponivel={escalas.disponivel}

@@ -94,6 +94,7 @@ type Props = {
     email: string;
     avatarUrl?: string | null;
     ehGestor: boolean;
+    aprovacoesPendentes?: number;
   };
   children: React.ReactNode;
 };
@@ -160,6 +161,8 @@ function ShellConteudo({ usuario, children }: Props) {
     item.exato ? pathname === item.href : pathname.startsWith(item.href);
 
   const secundarioAtivo = NAV_SECUNDARIO.some(ativo);
+  const aprovacoesPendentes = usuario.aprovacoesPendentes ?? 0;
+  const badgeAprovacoes = aprovacoesPendentes > 99 ? "99+" : String(aprovacoesPendentes);
 
   useEffect(() => {
     const dialog = menuRef.current;
@@ -245,7 +248,22 @@ function ShellConteudo({ usuario, children }: Props) {
             >
               <item.Icone className="size-[18px] shrink-0" aria-hidden="true" />
               <span>{item.label}</span>
-              <LinkPendingHint className="ml-auto" />
+              <span className="ml-auto flex items-center gap-1.5">
+                {item.href === "/funcionario/aprovacoes" && aprovacoesPendentes > 0 ? (
+                  <span
+                    className={cn(
+                      "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[0.68rem] font-semibold leading-none",
+                      ativo(item)
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-warning/20 text-warning",
+                    )}
+                    aria-label={`${aprovacoesPendentes} ${aprovacoesPendentes === 1 ? "aprovação pendente" : "aprovações pendentes"}`}
+                  >
+                    {badgeAprovacoes}
+                  </span>
+                ) : null}
+                <LinkPendingHint />
+              </span>
             </Link>
           ))}
 
@@ -391,11 +409,24 @@ function ShellConteudo({ usuario, children }: Props) {
           type="button"
           onClick={abrirMenuMobile}
           aria-haspopup="dialog"
+          aria-label={
+            aprovacoesPendentes > 0
+              ? `Mais (${aprovacoesPendentes} ${aprovacoesPendentes === 1 ? "aprovação pendente" : "aprovações pendentes"})`
+              : "Mais"
+          }
           className={cn(
-            "flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[0.68rem] font-medium transition-colors",
+            "relative flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[0.68rem] font-medium transition-colors",
             secundarioAtivo ? "text-brand-strong" : "text-muted-foreground",
           )}
         >
+          {aprovacoesPendentes > 0 ? (
+            <span
+              aria-hidden="true"
+              className="absolute right-2.5 top-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-primary px-1 py-0.5 text-[0.6rem] font-bold leading-none text-primary-foreground"
+            >
+              {badgeAprovacoes}
+            </span>
+          ) : null}
           <MoreHorizontal className="size-5" aria-hidden="true" />
           <span className="max-w-full truncate">Mais</span>
         </button>
@@ -440,7 +471,20 @@ function ShellConteudo({ usuario, children }: Props) {
                 )}
               >
                 <item.Icone className="size-5 shrink-0" aria-hidden="true" />
-                {item.label}
+                <span>{item.label}</span>
+                {item.href === "/funcionario/aprovacoes" && aprovacoesPendentes > 0 ? (
+                  <span
+                    className={cn(
+                      "ml-auto inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[0.68rem] font-semibold leading-none",
+                      ativo(item)
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-warning/20 text-warning",
+                    )}
+                    aria-label={`${aprovacoesPendentes} ${aprovacoesPendentes === 1 ? "aprovação pendente" : "aprovações pendentes"}`}
+                  >
+                    {badgeAprovacoes}
+                  </span>
+                ) : null}
               </Link>
             ))}
 
