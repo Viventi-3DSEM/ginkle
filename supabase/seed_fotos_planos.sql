@@ -5,19 +5,22 @@ insert into public.foto_ilpi (id_ilpi, url, legenda, ordem)
 select i.id_ilpi, v.url, v.legenda, v.ordem
 from public.ilpi i
 join (values
-  ('vida-plena',        '/images/casa.jpg',       'Jardim interno',        0),
-  ('vida-plena',        '/images/velhos.jpg',     'Sala de convivência',   1),
-  ('recanto-feliz',     '/images/velhos2.jpg',    'Varanda',               0),
-  ('recanto-feliz',     '/images/famillia.jpg',   'Refeitório',            1),
-  ('casa-do-sol',       '/images/famillia.jpg',   'Quarto adaptado',       0),
-  ('casa-do-sol',       '/images/casa.jpg',       'Área externa',          1),
-  ('bom-viver',         '/images/velhos.jpg',     'Sala comum',            0),
-  ('jardim-das-flores', '/images/casa.jpg',       'Horta',                 0),
-  ('jardim-das-flores', '/images/famillia.jpg',   'Almoço no jardim',      1),
-  ('novo-horizonte',    '/images/velhos2.jpg',    'Vista do canal',        0),
-  ('lar-sao-francisco', '/images/famillia.jpg',   'Sala de estar',         0),
-  ('morada-do-bem',     '/images/velhos.jpg',     'Suíte individual',      0),
-  ('morada-do-bem',     '/images/casa.jpg',       'Fachada',               1)
+  ('vida-plena',        '/images/casa.jpg',               'Fachada e jardim interno',            0),
+  ('vida-plena',        '/images/sala-estar.jpg',         'Sala de convivência',                 1),
+  ('recanto-feliz',     '/images/varanda-janela.jpg',     'Ambiente iluminado junto à janela',   0),
+  ('recanto-feliz',     '/images/almoco-convivencia.jpg', 'Refeitório e refeições acompanhadas', 1),
+  ('casa-do-sol',       '/images/leito-enfermagem.jpg',   'Quarto adaptado para alta dependência', 0),
+  ('casa-do-sol',       '/images/atividades-mesa.jpg',    'Atividades acompanhadas',             1),
+  ('bom-viver',         '/images/refeitorio-mesa.jpg',    'Refeitório',                          0),
+  ('bom-viver',         '/images/oficina-trico.jpg',      'Oficina de artesanato',               1),
+  ('jardim-das-flores', '/images/jardim-flores.jpg',      'Jardim e flores',                     0),
+  ('jardim-das-flores', '/images/xadrez-jardim.jpg',      'Lazer ao ar livre',                   1),
+  ('novo-horizonte',    '/images/sala-jogos.jpg',         'Sala de convivência e jogos',         0),
+  ('novo-horizonte',    '/images/quarto-terapia-pet.jpg', 'Quarto e terapia assistida',          1),
+  ('lar-sao-francisco', '/images/convivencia-grupo.jpg',  'Convivência em grupo',                0),
+  ('lar-sao-francisco', '/images/corredor-passeio.jpg',   'Circulação interna',                  1),
+  ('morada-do-bem',     '/images/quarto-cuidados.jpg',    'Suíte com acompanhamento',            0),
+  ('morada-do-bem',     '/images/salao-atividades.jpg',   'Salão de atividades',                 1)
 ) as v(slug, url, legenda, ordem) on v.slug = i.slug
 where not exists (
   select 1 from public.foto_ilpi f where f.id_ilpi = i.id_ilpi

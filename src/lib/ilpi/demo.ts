@@ -39,7 +39,7 @@ export const ILPIS_DEMO: IlpiPublica[] = [
     nota: 0,
     totalAvaliacoes: 0,
     mensalidade: 2900,
-    capaUrl: "/images/velhos2.jpg",
+    capaUrl: "/images/varanda-janela.jpg",
     tags: ["Cuidados 24h", "Jardim", "Atividades"],
   },
   {
@@ -59,7 +59,7 @@ export const ILPIS_DEMO: IlpiPublica[] = [
     nota: 0,
     totalAvaliacoes: 0,
     mensalidade: 3800,
-    capaUrl: "/images/famillia.jpg",
+    capaUrl: "/images/leito-enfermagem.jpg",
     tags: ["Alta dependência", "Enfermagem", "Fisioterapia"],
   },
   {
@@ -79,7 +79,7 @@ export const ILPIS_DEMO: IlpiPublica[] = [
     nota: 0,
     totalAvaliacoes: 0,
     mensalidade: 2800,
-    capaUrl: "/images/velhos.jpg",
+    capaUrl: "/images/refeitorio-mesa.jpg",
     tags: ["Cuidados 24h", "Refeições inclusas"],
   },
   {
@@ -99,7 +99,7 @@ export const ILPIS_DEMO: IlpiPublica[] = [
     nota: 0,
     totalAvaliacoes: 0,
     mensalidade: 3100,
-    capaUrl: "/images/casa.jpg",
+    capaUrl: "/images/jardim-flores.jpg",
     tags: ["Jardim", "Atividades", "Visitas diárias"],
   },
   {
@@ -119,7 +119,7 @@ export const ILPIS_DEMO: IlpiPublica[] = [
     nota: 0,
     totalAvaliacoes: 0,
     mensalidade: 3500,
-    capaUrl: "/images/velhos2.jpg",
+    capaUrl: "/images/sala-estar.jpg",
     tags: ["Enfermagem", "Fisioterapia"],
   },
   {
@@ -139,7 +139,7 @@ export const ILPIS_DEMO: IlpiPublica[] = [
     nota: 0,
     totalAvaliacoes: 0,
     mensalidade: 2700,
-    capaUrl: "/images/famillia.jpg",
+    capaUrl: "/images/sala-jogos.jpg",
     tags: ["Cuidados 24h", "Refeições inclusas"],
   },
   {
@@ -159,7 +159,7 @@ export const ILPIS_DEMO: IlpiPublica[] = [
     nota: 0,
     totalAvaliacoes: 0,
     mensalidade: 4200,
-    capaUrl: "/images/velhos.jpg",
+    capaUrl: "/images/quarto-cuidados.jpg",
     tags: ["Alta dependência", "Enfermagem", "Visitas diárias"],
   },
 ];

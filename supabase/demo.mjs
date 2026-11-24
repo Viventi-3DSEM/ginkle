@@ -173,8 +173,9 @@ const CASAS = [
       "Casa de dois pavimentos com jardim interno, equipe de enfermagem 24 horas e fisioterapia três vezes por semana. Visitas todos os dias, das 9h às 19h.",
     fotos: [
       { url: "/images/casa.jpg", legenda: "Fachada e jardim" },
-      { url: "/images/velhos.jpg", legenda: "Sala de convivência" },
-      { url: "/images/famillia.jpg", legenda: "Refeitório" },
+      { url: "/images/sala-estar.jpg", legenda: "Sala de convivência" },
+      { url: "/images/refeitorio-mesa.jpg", legenda: "Refeitório" },
+      { url: "/images/atividades-mesa.jpg", legenda: "Atividades da manhã" },
     ],
     planos: [
       { nome: "Quarto compartilhado", valor: 3200, descricao: "Acomoda dois residentes, com banheiro adaptado." },
@@ -231,8 +232,10 @@ const CASAS = [
     descricao:
       "Casa térrea a duas quadras da praia, com horta, oficina de memória e acompanhamento nutricional. Rotina calma, equipe fixa há mais de dez anos.",
     fotos: [
-      { url: "/images/velhos2.jpg", legenda: "Varanda" },
-      { url: "/images/casa.jpg", legenda: "Área externa" },
+      { url: "/images/jardim-flores.jpg", legenda: "Jardim e área externa" },
+      { url: "/images/oficina-trico.jpg", legenda: "Sala de atividades e convivência" },
+      { url: "/images/quarto-cuidados.jpg", legenda: "Quarto com acompanhamento" },
+      { url: "/images/xadrez-jardim.jpg", legenda: "Lazer ao ar livre" },
     ],
     planos: [
       { nome: "Padrão", valor: 2900, descricao: "Quarto compartilhado com acompanhamento integral." },
@@ -283,7 +286,10 @@ const CASAS = [
     tags: ["Cuidados 24h", "Atividades"],
     descricao:
       "Casa em preparação: reforma do quintal e contratação da equipe de enfermagem em andamento. A página só entra no diretório quando a casa estiver pronta.",
-    fotos: [{ url: "/images/casa.jpg", legenda: "Fachada" }],
+    fotos: [
+      { url: "/images/varanda-janela.jpg", legenda: "Área interna iluminada" },
+      { url: "/images/salao-atividades.jpg", legenda: "Salão de convivência" },
+    ],
     planos: [{ nome: "Padrão", valor: 3100, descricao: "Quarto compartilhado com acompanhamento integral." }],
     residentes: [
       { nome: "Terezinha Barbosa Lima", nascimento: "1943-03-19", sexo: "F", ingresso: "2024-05-10", status: "ATIVO" },

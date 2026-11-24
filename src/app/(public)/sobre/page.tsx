@@ -9,7 +9,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 
 const team = [
-  { nome: "Kaique Baccas", papel: "Líder · Banco de Dados e Front-end", src: "/images/kaique.jpg" },
+  { nome: "Kaique Baccas", papel: "Líder · Fullstack", src: "/images/kaique.jpg" },
   { nome: "Isabela Santos", papel: "Front-end e Design", src: "/images/isabela.jpg" },
   { nome: "Kauan Lima", papel: "Front-end e Banco de Dados", src: "/images/kauan.jpg" },
   { nome: "Murillo de Freitas", papel: "Back-end", src: "/images/murillo.jpg" },
@@ -123,8 +123,8 @@ export default function Sobre() {
 
             <div className="sobre-fade relative aspect-[4/5] overflow-hidden rounded-sm border border-border bg-muted">
               <Image
-                src="/images/velhos2.jpg"
-                alt="Um casal de idosos acompanhando o dia pelo computador"
+                src="/images/atendimento-sofa.jpg"
+                alt="Cuidador conversando com uma residente na sala de estar"
                 fill
                 priority
                 sizes="(max-width: 768px) 100vw, 42vw"
@@ -139,8 +139,8 @@ export default function Sobre() {
       <section className="band relative h-[60svh] min-h-[360px] overflow-hidden bg-photo text-photo-fg">
         <div className="band-media absolute inset-0">
           <Image
-            src="/images/famillia.jpg"
-            alt="Uma família reunida em casa, em um momento de cuidado"
+            src="/images/passeio-jardim.jpg"
+            alt="Passeio ao ar livre no jardim ao fim da tarde"
             fill
             sizes="100vw"
             className="scale-[1.15] object-cover"
@@ -182,8 +182,8 @@ export default function Sobre() {
 
             <div className="relative aspect-[4/5] overflow-hidden rounded-sm border border-border bg-muted">
               <Image
-                src="/images/velhos.jpg"
-                alt="Um casal de idosos caminhando junto, de costas, ao fim da tarde"
+                src="/images/maos-acolhimento.jpg"
+                alt="Mãos entrelaçadas em um gesto de acolhimento e cuidado"
                 fill
                 sizes="(max-width: 768px) 100vw, 38vw"
                 className="object-cover"
