@@ -50,7 +50,7 @@ O papel não é uma coluna fixa: deriva do vínculo ativo em `vinculo_ilpi` (ger
 
 | Perfil | Rota principal | O que faz |
 |---|---|---|
-| **Público** | `/`, `/sobre`, `/casas`, `/casas/[slug]` | Vitrine institucional e diretório público de ILPIs com busca, filtros, planos e avaliações |
+| **Público** | `/`, `/sobre`, `/casas`, `/casas/[slug]`, `/termos`, `/privacidade` | Vitrine institucional, diretório público de ILPIs (busca, filtros, planos e avaliações) e documentação legal/LGPD |
 | **Familiar** (sem vínculo em `vinculo_ilpi`) | `/cliente/*` | Residentes vinculados, linha do tempo de cuidados somente leitura (com duplo timestamp), solicitações de entrada, financeiro informativo, avaliações, chat em tempo real e perfil |
 | **Funcionário** (`FUNCIONARIO`) | `/funcionario/*` | Turno do dia, registro assistencial guiado com fila offline em IndexedDB e sincronização automática, lista/ficha de residentes, central de aprovações, chat em tempo real, minha escala, histórico e perfil |
 | **Gestor** (`GESTOR`) | `/gerente/*` | Dashboard multi-casa, cadastro/edição/fotos/visibilidade de casas, gestão de equipe e escala de turnos, residentes e vínculos familiares, planos, financeiro/assinantes, auditoria de ações e perfil |
@@ -60,7 +60,7 @@ Quem cria uma conta sem vínculo pode cadastrar a própria instituição em `/ca
 ## Estrutura do projeto
 
 ```text
-src/app/(public)/        landing (/), /sobre, /casas e /casas/[slug]
+src/app/(public)/        landing (/), /sobre, /casas, /casas/[slug], /termos e /privacidade
 src/app/(auth)/          /login, /cadastro, /recuperar-senha e /redefinir-senha
 src/app/(protected)/     /cliente/*, /funcionario/*, /gerente/* e /cadastrar-instituicao
 src/app/auth/            callbacks de confirmação e recuperação do Supabase Auth

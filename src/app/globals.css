@@ -189,6 +189,18 @@
     text-wrap: pretty;
   }
 
+  /* Tailwind v4 mudou o preflight de <button> para cursor: default; restaura mãozinha em controles clicáveis. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
   ::selection {
     background: var(--brand);
     color: var(--foreground);

@@ -34,7 +34,8 @@ Depois dos seeds, `node supabase/demo.mjs` cria um cenário de demonstração po
 RLS: 6 contas (1 gestora, 3 funcionários, 2 familiares), 3 casas (duas
 publicadas e uma em rascunho), residentes, 12 registros por casa (11 pontuais e
 1 com 25 min de atraso), avaliações e adesões. A senha das contas vem de
-`DEMO_PW` (nunca no repositório); o script é idempotente e `demo-limpar.sql`
+`DEMO_PW` (nunca no repositório); o script é idempotente, `demo-reset-dados.sql`
+limpa apenas os dados operacionais mantendo as contas demo e `demo-limpar.sql`
 desfaz tudo na ordem das chaves estrangeiras. Para espalhar os registros das
 casas de demonstração ao longo dos últimos 7 dias (sem abrir brecha na API),
 rode `supabase/demo-datas-historicas.sql` no SQL Editor depois do `demo.mjs`.
