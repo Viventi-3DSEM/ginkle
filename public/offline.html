@@ -149,7 +149,14 @@
         eventuais registros pendentes.
       </p>
       <div class="acoes">
-        <button type="button" onclick="window.location.reload()">
+        <a
+          id="btn-turno"
+          href="/funcionario/novo-registro"
+          style="display: none; border: 0; background: var(--primary); color: var(--primary-fg)"
+        >
+          Lançar novo registro (modo offline)
+        </a>
+        <button id="btn-tentar" type="button" onclick="window.location.reload()">
           Tentar novamente
         </button>
         <a href="/">Voltar para a página inicial</a>
@@ -159,6 +166,26 @@
       window.addEventListener("online", function () {
         window.location.reload();
       });
+      if ("caches" in window) {
+        caches
+          .open("ginkle-turno-v3")
+          .then(function (cache) {
+            return cache.match("/funcionario/novo-registro");
+          })
+          .then(function (hit) {
+            if (hit) {
+              var btn = document.getElementById("btn-turno");
+              var tentar = document.getElementById("btn-tentar");
+              if (btn) btn.style.display = "inline-flex";
+              if (tentar) {
+                tentar.style.background = "transparent";
+                tentar.style.color = "var(--fg)";
+                tentar.style.border = "1px solid var(--border)";
+              }
+            }
+          })
+          .catch(function () {});
+      }
     </script>
   </body>
 </html>

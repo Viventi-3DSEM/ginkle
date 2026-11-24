@@ -10,12 +10,31 @@ function codigoErroCallback(bruto: string): string {
   return "erro-autenticacao";
 }
 
+function ehSessaoRecovery(accessToken?: string): boolean {
+  if (!accessToken) return false;
+  const partes = accessToken.split(".");
+  if (partes.length < 2) return false;
+  try {
+    const json = Buffer.from(partes[1], "base64url").toString("utf8");
+    const payload = JSON.parse(json) as { amr?: Array<{ method?: string } | string> };
+    return (
+      Array.isArray(payload.amr) &&
+      payload.amr.some((item) =>
+        typeof item === "string" ? item === "recovery" : item?.method === "recovery",
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
 // Destino dos links do e-mail: troca o ?code= (PKCE) pela sessão em cookie.
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
   const erro = searchParams.get("error_description") ?? searchParams.get("error");
-  const destino = destinoSeguro(searchParams.get("next")) ?? "/cliente";
+  const nextExplicito = destinoSeguro(searchParams.get("next"));
+  const typeRecovery = searchParams.get("type") === "recovery";
 
   if (erro) {
     return NextResponse.redirect(`${origin}/login?erro=${codigoErroCallback(erro)}`);
@@ -26,11 +45,17 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
     return NextResponse.redirect(`${origin}/login?erro=link-expirado`);
   }
+
+  const destino =
+    nextExplicito ??
+    (typeRecovery || ehSessaoRecovery(data.session?.access_token)
+      ? "/redefinir-senha"
+      : "/cliente");
 
   return NextResponse.redirect(`${origin}${destino}`);
 }

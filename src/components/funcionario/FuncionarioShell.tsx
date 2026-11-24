@@ -319,7 +319,12 @@ function ShellConteudo({ usuario, children }: Props) {
           </Link>
           <div className="mt-1 flex items-center gap-1">
             <ThemeToggle />
-            <form action={sair}>
+            <form
+              action={sair}
+              onSubmit={() => {
+                navigator.serviceWorker?.controller?.postMessage({ type: "LIMPAR_TURNO" });
+              }}
+            >
               <button
                 type="submit"
                 className="inline-flex items-center gap-2 rounded-sm px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
@@ -360,7 +365,12 @@ function ShellConteudo({ usuario, children }: Props) {
               )}
             </Link>
             <ThemeToggle />
-            <form action={sair}>
+            <form
+              action={sair}
+              onSubmit={() => {
+                navigator.serviceWorker?.controller?.postMessage({ type: "LIMPAR_TURNO" });
+              }}
+            >
               <button
                 type="submit"
                 aria-label="Sair"

@@ -171,6 +171,17 @@ export function OfflineProvider({
   }, [usuarioId, recarregarFila, router]);
 
   useEffect(() => {
+    if (!online || typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
+      return;
+    }
+    void navigator.serviceWorker.ready
+      .then((reg) => {
+        reg.active?.postMessage({ type: "PRECACHE_TURNO" });
+      })
+      .catch(() => {});
+  }, [online]);
+
+  useEffect(() => {
     let ativo = true;
 
     void listarPendentesOffline(usuarioId).then((lista) => {

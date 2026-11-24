@@ -10,7 +10,8 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const destino = destinoSeguro(searchParams.get("next")) ?? "/cliente";
+  const padrao = type === "recovery" ? "/redefinir-senha" : "/cliente";
+  const destino = destinoSeguro(searchParams.get("next")) ?? padrao;
 
   if (!tokenHash || !type || !supabaseConfigurado()) {
     return NextResponse.redirect(`${origin}/login?erro=link-invalido`);
