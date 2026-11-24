@@ -7,7 +7,7 @@ import {
   iniciais,
   rotuloStatusResidente,
   rotuloTipo,
-} from "@/lib/portal/formato";
+} from "@/lib/painel/formato";
 
 type Props = {
   residente: ResidenteVinculado;

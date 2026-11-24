@@ -313,3 +313,9 @@ export function idade(nascimento: string): number | null {
   if (mes < 0 || (mes === 0 && diaHoje < data.getUTCDate())) anos -= 1;
   return anos >= 0 ? anos : null;
 }
+
+export function atrasoMinutos(criadoEm: string, sincronizadoEm: string): number {
+  const diff = new Date(sincronizadoEm).getTime() - new Date(criadoEm).getTime();
+  if (!Number.isFinite(diff) || diff <= 0) return 0;
+  return Math.round(diff / 60000);
+}

@@ -104,7 +104,7 @@ export default function Header() {
           <span
             className={cn(
               "font-heading text-xl font-bold tracking-tight transition-colors duration-300",
-              overlay ? "text-[#f4f8f4]" : "text-foreground",
+              overlay ? "text-photo-light" : "text-foreground",
             )}
           >
             Ginkle
@@ -145,9 +145,9 @@ export default function Header() {
             <Link
               href={painelHref}
               className={cn(
-                "hidden items-center gap-2 rounded-lg px-4 py-2 font-sans text-sm font-medium transition-opacity hover:opacity-90 sm:inline-flex",
+                "hidden items-center gap-2 rounded-sm px-4 py-2 font-sans text-sm font-medium transition-opacity hover:opacity-90 sm:inline-flex",
                 overlay
-                  ? "bg-[#f4f8f4] text-[#174f32]"
+                  ? "bg-photo-light text-photo-light-ink"
                   : "bg-primary text-primary-foreground",
               )}
             >
@@ -170,9 +170,9 @@ export default function Header() {
               <Link
                 href="/cadastro"
                 className={cn(
-                  "hidden rounded-lg px-4 py-2 font-sans text-sm font-medium transition-opacity hover:opacity-90 sm:inline-flex",
+                  "hidden rounded-sm px-4 py-2 font-sans text-sm font-medium transition-opacity hover:opacity-90 sm:inline-flex",
                   overlay
-                    ? "bg-[#f4f8f4] text-[#174f32]"
+                    ? "bg-photo-light text-photo-light-ink"
                     : "bg-primary text-primary-foreground",
                 )}
               >
@@ -186,7 +186,7 @@ export default function Header() {
             aria-expanded={open}
             onClick={() => setOpen((o) => !o)}
             className={cn(
-              "inline-flex size-9 items-center justify-center rounded-lg transition-colors md:hidden",
+              "inline-flex size-9 items-center justify-center rounded-sm transition-colors md:hidden",
               overlay ? "text-white hover:bg-white/10" : "hover:bg-secondary",
             )}
           >
@@ -213,7 +213,7 @@ export default function Header() {
                 <Link
                   href={painelHref}
                   onClick={() => setOpen(false)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 font-sans text-sm font-medium text-primary-foreground"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-sm bg-primary px-4 py-2.5 font-sans text-sm font-medium text-primary-foreground"
                 >
                   <LayoutDashboard className="size-4" aria-hidden="true" />
                   Ir para o painel
@@ -224,14 +224,14 @@ export default function Header() {
                 <Link
                   href="/login"
                   onClick={() => setOpen(false)}
-                  className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 font-sans text-sm font-medium transition-colors hover:bg-secondary"
+                  className="inline-flex items-center justify-center rounded-sm px-4 py-2.5 font-sans text-sm font-medium transition-colors hover:bg-secondary"
                 >
                   Entrar
                 </Link>
                 <Link
                   href="/cadastro"
                   onClick={() => setOpen(false)}
-                  className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2.5 font-sans text-sm font-medium text-primary-foreground"
+                  className="inline-flex items-center justify-center rounded-sm bg-primary px-4 py-2.5 font-sans text-sm font-medium text-primary-foreground"
                 >
                   Cadastre-se
                 </Link>

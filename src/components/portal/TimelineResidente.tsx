@@ -18,7 +18,7 @@ import {
   rotuloCargo,
   rotuloDia,
   rotuloTipo,
-} from "@/lib/portal/formato";
+} from "@/lib/painel/formato";
 import { cn } from "@/lib/utils";
 
 type FiltroTipo = "TODOS" | "CUIDADO" | "MEDICAMENTO" | "SINAL_VITAL" | "OCORRENCIA";

@@ -12,7 +12,7 @@ export default function CasasLoading() {
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="overflow-hidden rounded-xl border border-border bg-card">
+          <div key={i} className="overflow-hidden rounded-sm border border-border bg-card">
             <div className="aspect-[16/10] w-full animate-pulse bg-muted" />
             <div className="space-y-2.5 p-5">
               <div className="h-5 w-44 animate-pulse rounded-sm bg-muted" />

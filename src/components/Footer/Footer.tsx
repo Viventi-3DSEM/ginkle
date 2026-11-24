@@ -1,6 +1,6 @@
 ﻿import Image from "next/image";
 import Link from "next/link";
-import { Mail, MapPin, Phone } from "lucide-react";
+import { Mail, MapPin } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -94,14 +94,8 @@ export default function Footer() {
               </a>
             </li>
             <li className="flex items-center gap-2.5">
-              <Phone className="size-4 shrink-0" aria-hidden="true" />
-              <a href="tel:+5513991234567" className="transition-colors hover:text-footer-foreground">
-                (13) 99123-4567
-              </a>
-            </li>
-            <li className="flex items-center gap-2.5">
               <MapPin className="size-4 shrink-0" aria-hidden="true" />
-              Praia Grande · SP
+              Praia Grande · SP · ETEC Praia Grande
             </li>
           </ul>
         </div>

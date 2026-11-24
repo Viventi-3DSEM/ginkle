@@ -19,7 +19,7 @@ export default function CasaHero({ casa }: { casa: IlpiCompleta }) {
         </nav>
 
         {fotos.length === 1 ? (
-          <div className="relative mt-5 aspect-[16/9] max-h-[26rem] w-full overflow-hidden rounded-xl bg-muted">
+          <div className="relative mt-5 aspect-[16/9] max-h-[26rem] w-full overflow-hidden rounded-sm bg-muted">
             <Image
               src={fotos[0].url}
               alt={fotos[0].legenda ?? `Fachada de ${casa.nome}, em ${casa.cidade}`}
@@ -39,7 +39,7 @@ export default function CasaHero({ casa }: { casa: IlpiCompleta }) {
             {fotos.map((foto, idx) => (
               <div
                 key={`${foto.url}-${idx}`}
-                className="relative aspect-[16/10] overflow-hidden rounded-xl bg-muted sm:min-h-[20rem]"
+                className="relative aspect-[16/10] overflow-hidden rounded-sm bg-muted sm:min-h-[20rem]"
               >
                 <Image
                   src={foto.url}
@@ -65,7 +65,7 @@ export default function CasaHero({ casa }: { casa: IlpiCompleta }) {
         ) : (
           <div className="mt-5 space-y-2">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr] sm:grid-rows-2">
-              <div className="relative col-span-2 aspect-[16/10] overflow-hidden rounded-xl bg-muted sm:col-span-1 sm:row-span-2 sm:aspect-auto sm:min-h-[22rem]">
+              <div className="relative col-span-2 aspect-[16/10] overflow-hidden rounded-sm bg-muted sm:col-span-1 sm:row-span-2 sm:aspect-auto sm:min-h-[22rem]">
                 <Image
                   src={fotos[0].url}
                   alt={fotos[0].legenda ?? `Fachada de ${casa.nome}, em ${casa.cidade}`}
@@ -84,7 +84,7 @@ export default function CasaHero({ casa }: { casa: IlpiCompleta }) {
               {fotos.slice(1, 3).map((foto, idx) => (
                 <div
                   key={`${foto.url}-${idx}`}
-                  className="relative aspect-[4/3] overflow-hidden rounded-xl bg-muted sm:aspect-auto"
+                  className="relative aspect-[4/3] overflow-hidden rounded-sm bg-muted sm:aspect-auto"
                 >
                   <Image
                     src={foto.url}
@@ -102,7 +102,7 @@ export default function CasaHero({ casa }: { casa: IlpiCompleta }) {
                 {fotos.slice(3, 12).map((foto, idx) => (
                   <li
                     key={`${foto.url}-extra-${idx}`}
-                    className="relative aspect-[4/3] overflow-hidden rounded-lg bg-muted"
+                    className="relative aspect-[4/3] overflow-hidden rounded-sm bg-muted"
                   >
                     <Image
                       src={foto.url}

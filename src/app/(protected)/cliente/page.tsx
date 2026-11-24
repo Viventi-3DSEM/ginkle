@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import ResidenteCard from "@/components/portal/ResidenteCard";
 import { portalDoFamiliar, type AdesaoDoFamiliar } from "@/lib/portal/dados";
-import { dataHora, rotuloStatusAdesao, rotuloTipo } from "@/lib/portal/formato";
+import { dataHora, rotuloStatusAdesao, rotuloTipo } from "@/lib/painel/formato";
 
 export const metadata = { title: "Portal do familiar" };
 

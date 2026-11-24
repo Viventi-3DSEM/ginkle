@@ -96,7 +96,7 @@ export default function CasasDirectory({
               e.preventDefault();
               buscar();
             }}
-            className="mt-8 rounded-2xl border border-border bg-card p-2 shadow-sm"
+            className="mt-8 rounded-sm border border-border bg-card p-2 shadow-sm"
           >
             <div className="flex flex-col gap-1 md:flex-row md:items-center">
               <label className="flex flex-1 items-center gap-3 px-4 py-3">
@@ -131,7 +131,7 @@ export default function CasasDirectory({
 
               <button
                 type="submit"
-                className="m-1 inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-sans text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                className="m-1 inline-flex items-center justify-center gap-2 rounded-sm bg-primary px-6 py-3 font-sans text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
               >
                 <Search className="size-4" aria-hidden="true" />
                 Buscar
@@ -173,7 +173,7 @@ export default function CasasDirectory({
                 value={ordem}
                 onChange={(event) => setOrdem(event.target.value as Ordem)}
                 aria-label="Ordenar por"
-                className="cursor-pointer rounded-lg border border-border bg-card px-3 py-2 font-sans text-sm text-foreground outline-none"
+                className="cursor-pointer rounded-sm border border-border bg-card px-3 py-2 font-sans text-sm text-foreground outline-none"
               >
                 <option value="relevancia">Relevância</option>
                 <option value="nota">Melhor avaliadas</option>
@@ -190,7 +190,7 @@ export default function CasasDirectory({
           </p>
 
           {filtradas.length === 0 ? (
-            <div className="mt-8 rounded-2xl border border-dashed border-border bg-card p-10 text-center sm:p-14">
+            <div className="mt-8 rounded-sm border border-dashed border-border bg-card p-10 text-center sm:p-14">
               <h2 className="font-heading text-xl font-semibold">
                 Nenhuma casa encontrada.
               </h2>
@@ -200,7 +200,7 @@ export default function CasasDirectory({
               <button
                 type="button"
                 onClick={limpar}
-                className="mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 font-sans text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                className="mt-6 inline-flex items-center justify-center rounded-sm bg-primary px-5 py-2.5 font-sans text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
               >
                 Limpar filtros
               </button>
@@ -212,7 +212,7 @@ export default function CasasDirectory({
                 const href = `/casas/${casa.slug}`;
                 return (
                   <li key={casa.slug} className="h-full">
-                    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition-shadow hover:shadow-lg">
+                    <article className="group flex h-full flex-col overflow-hidden rounded-sm border border-border bg-card transition-shadow hover:shadow-md">
                       <Link
                         href={href}
                         aria-label={`Ver a casa ${casa.nome}`}
@@ -281,7 +281,7 @@ export default function CasasDirectory({
                           </p>
                           <Link
                             href={href}
-                            className="shrink-0 rounded-lg border border-border px-3 py-2 font-sans text-sm font-medium text-brand-strong transition-colors hover:border-brand-strong hover:bg-secondary"
+                            className="shrink-0 rounded-sm border border-border px-3 py-2 font-sans text-sm font-medium text-brand-strong transition-colors hover:border-brand-strong hover:bg-secondary"
                           >
                             Ver detalhes
                           </Link>
@@ -316,7 +316,7 @@ export default function CasasDirectory({
           </div>
           <Link
             href="/cadastrar-instituicao"
-            className="inline-flex items-center gap-2 rounded-lg bg-[#a3d7a9] px-6 py-3 font-sans text-sm font-medium text-[#0f1f10] transition-opacity hover:opacity-90"
+            className="inline-flex items-center gap-2 rounded-sm bg-photo-cta px-6 py-3 font-sans text-sm font-medium text-photo-cta-ink transition-opacity hover:opacity-90"
           >
             Cadastrar instituição
             <ArrowRight className="size-4" aria-hidden="true" />

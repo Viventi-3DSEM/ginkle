@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { cancelarAdesao, type EstadoAcao } from "@/lib/portal/actions";
 import type { AdesaoDoFamiliar } from "@/lib/portal/dados";
-import { dataHora, rotuloStatusAdesao } from "@/lib/portal/formato";
+import { dataHora, rotuloStatusAdesao } from "@/lib/painel/formato";
 import { cn } from "@/lib/utils";
 
 type FiltroStatus = "TODAS" | "PENDENTE" | "APROVADA" | "RECUSADA" | "CANCELADA";

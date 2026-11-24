@@ -21,7 +21,7 @@ import {
   iniciais,
   rotuloSexo,
   rotuloStatusResidente,
-} from "@/lib/portal/formato";
+} from "@/lib/painel/formato";
 
 type Props = { params: Promise<{ id: string }> };
 

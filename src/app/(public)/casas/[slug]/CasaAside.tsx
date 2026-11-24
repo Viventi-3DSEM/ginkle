@@ -6,7 +6,7 @@ import { reais } from "@/lib/painel/formato";
 export default function CasaAside({ casa }: { casa: IlpiCompleta }) {
   return (
     <aside className="lg:sticky lg:top-24">
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+      <div className="rounded-sm border border-border bg-card p-6 shadow-sm">
         <p className="font-sans text-xs uppercase tracking-wide text-muted-foreground">
           {casa.mensalidade !== null ? "Mensalidade a partir de" : "Mensalidade"}
         </p>
@@ -33,7 +33,7 @@ export default function CasaAside({ casa }: { casa: IlpiCompleta }) {
 
         <Link
           href={`/cliente/solicitacoes?casa=${encodeURIComponent(casa.slug)}`}
-          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 font-sans text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-sm bg-primary px-5 py-3 font-sans text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
           Solicitar entrada
           <ArrowRight className="size-4" aria-hidden="true" />

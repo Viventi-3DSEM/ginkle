@@ -1,6 +1,4 @@
 @import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -15,17 +13,12 @@
 
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -47,14 +40,16 @@
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
 
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
+  --color-photo: var(--photo);
+  --color-photo-scrim: var(--photo-scrim);
+  --color-photo-fg: var(--photo-fg);
+  --color-photo-cta: var(--photo-cta);
+  --color-photo-cta-hover: var(--photo-cta-hover);
+  --color-photo-cta-ink: var(--photo-cta-ink);
+  --color-photo-light: var(--photo-light);
+  --color-photo-light-ink: var(--photo-light-ink);
+  --color-cta-band: var(--cta-band);
+  --color-cta-band-ink: var(--cta-band-ink);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -72,8 +67,6 @@
 
   --card: #ffffff;
   --card-foreground: #183d29;
-  --popover: #ffffff;
-  --popover-foreground: #183d29;
 
   --primary: #174f32;
   --primary-foreground: #ffffff;
@@ -83,11 +76,6 @@
 
   --muted: #edf4ee;
   --muted-foreground: #526b5a;
-
-  --accent: #e4f0e5;
-  --accent-foreground: #183d29;
-
-  --destructive: #c0362c;
 
   --border: #dce8de;
   --input: #6f9678;
@@ -112,16 +100,19 @@
   --info: #2f6fd0;
   --info-foreground: #ffffff;
 
-  --radius: 0.375rem;
+  /* Superfícies sobre fotografia e faixa promocional: contraste constante em claro e escuro. */
+  --photo: #0b1a12;
+  --photo-scrim: #08140e;
+  --photo-fg: #e4f0e5;
+  --photo-cta: #a3d7a9;
+  --photo-cta-hover: #b4d4b8;
+  --photo-cta-ink: #0f1f10;
+  --photo-light: #f4f8f4;
+  --photo-light-ink: #174f32;
+  --cta-band: #7ab07f;
+  --cta-band-ink: #0f1f10;
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #183d29;
-  --sidebar-primary: #174f32;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e4f0e5;
-  --sidebar-accent-foreground: #183d29;
-  --sidebar-border: #dce8de;
-  --sidebar-ring: #417546;
+  --radius: 0.375rem;
 }
 
 /* ---- Ginkle · Tema escuro (manual de identidade) ---- */
@@ -131,8 +122,6 @@
 
   --card: #1e2b1f;
   --card-foreground: #e4f0e5;
-  --popover: #1e2b1f;
-  --popover-foreground: #e4f0e5;
 
   --primary: #7ab07f;
   --primary-foreground: #0f1f10;
@@ -142,11 +131,6 @@
 
   --muted: #1a3a1c;
   --muted-foreground: #8fab91;
-
-  --accent: #1a3a1c;
-  --accent-foreground: #e4f0e5;
-
-  --destructive: #e08b84;
 
   --border: #2a532c;
   --input: #417546;
@@ -170,15 +154,6 @@
   --danger-foreground: #1f0a08;
   --info: #9dc4f5;
   --info-foreground: #07131f;
-
-  --sidebar: #1e2b1f;
-  --sidebar-foreground: #e4f0e5;
-  --sidebar-primary: #7ab07f;
-  --sidebar-primary-foreground: #0f1f10;
-  --sidebar-accent: #1a3a1c;
-  --sidebar-accent-foreground: #e4f0e5;
-  --sidebar-border: #2a532c;
-  --sidebar-ring: #7ab07f;
 }
 
 @layer base {
@@ -351,20 +326,6 @@
   .rise {
     opacity: 1;
     transform: none;
-  }
-}
-
-@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
-  .record-entry {
-    opacity: 0.42;
-    border-left-color: transparent;
-    transition:
-      opacity 0.45s ease,
-      border-color 0.45s ease;
-  }
-  .record-entry.is-active {
-    opacity: 1;
-    border-left-color: var(--brand-strong);
   }
 }
 
